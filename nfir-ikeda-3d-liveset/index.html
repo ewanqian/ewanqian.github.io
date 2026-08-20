@@ -91,11 +91,11 @@ addEventListener('resize',resize);resize();
 function sh(type,src){var s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error('shader: '+gl.getShaderInfoLog(s));return s}
 function prog(vs,fs){var p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error('prog: '+gl.getProgramInfoLog(p));return p}
 
-var VS='attribute vec3 aPos;uniform mat4 uMVP;uniform float uSize;void main(){gl_Position=uMVP*vec4(aPos,1.0);gl_PointSize=uSize;}';
+var VS='attribute vec3 aPos;uniform mat4 uMVP;uniform float uSize;uniform float uFocal;void main(){gl_Position=uMVP*vec4(aPos,1.0);gl_PointSize=clamp(uSize*uFocal/max(gl_Position.w,0.05),1.0,64.0);}';
 var FS='precision mediump float;uniform float uA;void main(){gl_FragColor=vec4(vec3(uA),1.0);}';
 var FLVS='attribute vec2 aP;void main(){gl_Position=vec4(aP,0.0,1.0);}';
 var pPts=prog(VS,FS),pLn=prog(VS,FS);
-var aPts=gl.getAttribLocation(pPts,'aPos'),uMVPP=gl.getUniformLocation(pPts,'uMVP'),uSz=gl.getUniformLocation(pPts,'uSize'),uAP=gl.getUniformLocation(pPts,'uA');
+var aPts=gl.getAttribLocation(pPts,'aPos'),uMVPP=gl.getUniformLocation(pPts,'uMVP'),uSz=gl.getUniformLocation(pPts,'uSize'),uFocal=gl.getUniformLocation(pPts,'uFocal'),uAP=gl.getUniformLocation(pPts,'uA');
 var aLn=gl.getAttribLocation(pLn,'aPos'),uMVPL=gl.getUniformLocation(pLn,'uMVP'),uAL=gl.getUniformLocation(pLn,'uA');
 var ptsBuf=gl.createBuffer(),lnBuf=gl.createBuffer();
 
@@ -113,16 +113,17 @@ function flush(mode,M,alpha){
   gl.bindBuffer(gl.ARRAY_BUFFER,buf);
   gl.bufferData(gl.ARRAY_BUFFER,arr.subarray(0,n*3),gl.DYNAMIC_DRAW);
   gl.useProgram(p);
-  if(isPts){gl.enableVertexAttribArray(aPts);gl.vertexAttribPointer(aPts,3,gl.FLOAT,false,0,0);gl.uniform1f(uSz,ptSize);gl.uniform1f(uAP,alpha);gl.uniformMatrix4fv(uMVPP,false,M)}
+  if(isPts){gl.enableVertexAttribArray(aPts);gl.vertexAttribPointer(aPts,3,gl.FLOAT,false,0,0);gl.uniform1f(uSz,ptSize);gl.uniform1f(uFocal,canvas.height*0.5);gl.uniform1f(uAP,alpha);gl.uniformMatrix4fv(uMVPP,false,M)}
   else{gl.enableVertexAttribArray(aLn);gl.vertexAttribPointer(aLn,3,gl.FLOAT,false,0,0);gl.uniform1f(uAL,alpha);gl.uniformMatrix4fv(uMVPL,false,M)}
   gl.drawArrays(isPts?gl.POINTS:gl.LINES,0,n);
   geo.nP=0;geo.nL=0;
 }
 
 // ── 静态几何预计算 ─────────────────────────────────────────────
-// GRID 地面网格
-var G={lines:null};
-(function(){var N=24,S=22,arr=[];for(var i=0;i<=N;i++){var v=-S+i*(2*S/N);arr.push([v,0,-S,v,0,S]);arr.push([-S,0,v,S,0,v])}G.lines=arr})();
+// GRID 地面网格（按深度分带：远→近 4 段，用于亮度分层）
+var G={lines:null,bands:[[],[],[],[]]};
+(function(){var N=24,S=22,arr=[];for(var i=0;i<=N;i++){var v=-S+i*(2*S/N);arr.push([v,0,-S,v,0,S]);arr.push([-S,0,v,S,0,v])}G.lines=arr;
+  for(var k=0;k<arr.length;k++){var L=arr[k],cz=(L[2]===L[5])?L[2]:(L[2]+L[5])/2,b=cz<=-12?0:(cz<=-4?1:(cz<=4?2:3));G.bands[b].push(k)}})();
 // FIELD 粒子场（2800 点，静态朝向，CPU 旋转）
 var F={x:new Float32Array(2800),y:new Float32Array(2800),z:new Float32Array(2800)};
 (function(){for(var i=0;i<2800;i++){F.x[i]=(h(i)*2-1)*19;F.y[i]=(h(i*3)*2-1)*17;F.z[i]=(h(i*5)*2-1)*19}})();
@@ -266,9 +267,11 @@ function doReset(){state=0;hold=false;auto=true;musicState=0;pendingMusic=-1;phr
 function drawState(st,t,dt){
   var sp=1+E*2.6;
   switch(st){
-  case 0:{ // GRID — 透视地面网格 + 稀疏星点
-    for(var i=0;i<G.lines.length;i++){var L=G.lines[i];addLn(L[0],L[1],L[2],L[3],L[4],L[5])}
-    flush('ln',MAT.ident(),0.5+E*0.4);
+  case 0:{ // GRID — 透视地面网格（近亮远暗，深度分层）+ 稀疏星点
+    var bandA=[0.2,0.38,0.62,0.95];
+    for(var b=0;b<4;b++){var ids=G.bands[b],ba=bandA[b]*(0.7+E*0.6);
+      for(var i=0;i<ids.length;i++){var L=G.lines[ids[i]];addLn(L[0],L[1],L[2],L[3],L[4],L[5])}
+      flush('ln',MAT.ident(),ba)}
     for(var k=0;k<500;k++){var y=2+h(k*7)*20*sp;addPt((h(k)*2-1)*30,y,(h(k*13)*2-1)*30)}
     flush('pts',MAT.ident(),(0.5+0.3*Math.sin(t*0.7+E))*ptAlpha());
     break}
@@ -357,15 +360,15 @@ function frame(now){
   } else {E=lerp(E,0,0.06)}
   flash*=Math.exp(-dt*8.5);shake*=Math.exp(-dt*5);glitchAmt=clamp(glitchAmt*Math.exp(-dt*6),0,1);
   if(Math.random()<0.012+Hi*0.02)glitchAmt=1;
-  // 相机
-  th+=dt*(0.05+E*1.3);
-  var ph=0.3*Math.sin(globalT*0.11),R=23+E*3.4+0.5*Math.sin(globalT*0.23);
-  var ex=R*Math.cos(ph)*Math.sin(th),ey=R*Math.sin(ph)+Math.sin(globalT*0.4)*0.4,ez=R*Math.cos(ph)*Math.cos(th);
+  // 相机：更近、俯角更明显、轨道更快，beat 推近
+  th+=dt*(0.09+E*1.6);
+  var ph=0.26+0.14*Math.sin(globalT*0.11),R=20+E*3.2+0.6*Math.sin(globalT*0.23)-flash*1.6;
+  var ex=R*Math.cos(ph)*Math.sin(th),ey=R*Math.sin(ph)+Math.sin(globalT*0.4)*0.6,ez=R*Math.cos(ph)*Math.cos(th);
   if(shake>0.01){ex+=(Math.random()*2-1)*shake*0.6;ey+=(Math.random()*2-1)*shake*0.4;ez+=(Math.random()*2-1)*shake*0.6}
   var P=MAT.persp(1.15,canvas.width/canvas.height,0.1,120);
   var V=MAT.lookAt([ex,ey,ez],[0,0,0],[0,1,0]);
   PV=MAT.mul(P,V);
-  ptSize=(1.4+E*3.4)*dpr;
+  ptSize=(1.6+E*3.6)*dpr;
   // 绘制
   drawState(state,globalT,dt);
   // 覆盖层闪光
