@@ -1,0 +1,418 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#000000"><meta name="description" content="NFIR · IKEDA 3D LIVESET — 无需进一步输入 No Further Input Required 的池田亮司式黑白三维音画 liveset：raw WebGL 3D + WebAudio 生成电子乐 + 状态机。单文件、离线可演。"><title>NFIR · IKEDA 3D LIVESET — No Further Input Required</title><style>
+:root{--ink:#fff;--dim:rgba(255,255,255,.38);--faint:rgba(255,255,255,.16);--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box;user-select:none;-webkit-user-select:none}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#000;color:var(--ink);font-family:var(--mono);-webkit-font-smoothing:antialiased}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;background:#000}
+#scan{position:fixed;inset:0;z-index:2;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.03) 0 1px,transparent 1px 3px);mix-blend-mode:screen;animation:flick 3.2s steps(2) infinite}
+@keyframes flick{0%,92%{opacity:1}93%{opacity:.55}94%,100%{opacity:1}}
+#ov{position:fixed;inset:0;z-index:3;pointer-events:none;width:100%;height:100%}
+#hud{position:fixed;top:14px;left:16px;z-index:4;font-size:11px;line-height:1.55;letter-spacing:.08em;pointer-events:none;text-transform:uppercase}
+#hud .t{color:var(--faint);font-size:9px;letter-spacing:.3em}
+#hud .v{font-weight:700}
+#hud .m{color:var(--dim)}
+#flashwarn{position:fixed;top:14px;right:16px;z-index:4;font-size:9px;letter-spacing:.22em;color:var(--faint);pointer-events:none}
+#log{position:fixed;left:16px;bottom:64px;z-index:4;font-size:10px;line-height:1.5;color:var(--dim);pointer-events:none;max-width:46vw}
+#log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bar{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:5;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;padding:8px 10px;background:rgba(0,0,0,.55);border:1px solid var(--faint);backdrop-filter:blur(6px)}
+#bar button{appearance:none;background:transparent;border:1px solid var(--dim);color:var(--ink);font:10px/1 var(--mono);letter-spacing:.14em;padding:9px 10px;min-width:40px;cursor:pointer;text-transform:uppercase}
+#bar button:hover{border-color:var(--ink)}
+#bar button.on{background:var(--ink);color:#000;border-color:var(--ink)}
+#bar .sep{width:1px;height:22px;background:var(--faint)}
+#bar .r{font-size:10px;letter-spacing:.14em;padding:0 4px;color:var(--dim);white-space:nowrap}
+#bar .r b{color:var(--ink);font-weight:700}
+#intro{position:fixed;inset:0;z-index:6;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;pointer-events:none;text-align:center}
+#intro .big{font-size:13px;letter-spacing:.42em;text-transform:uppercase}
+#intro .sub{font-size:9px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase}
+#fallback{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;text-align:center;font-size:12px;letter-spacing:.2em;color:#fff;background:#000;line-height:2}
+@media(max-width:600px){#bar{width:calc(100% - 16px)}#hud{font-size:10px}#log{max-width:70vw}}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="scan" aria-hidden="true"></div>
+<canvas id="ov" aria-hidden="true"></canvas>
+<div id="hud"><div class="t">NFIR · IKEDA 3D LIVESET</div><div>VISUAL&nbsp;<span class="v" id="hudV">GRID</span></div><div>MUSIC&nbsp;&nbsp;<span class="m" id="hudM">SILENT</span></div><div id="hudB">BPM 120 · 00:00</div><div id="hudA" style="letter-spacing:.3em">AUTO</div></div>
+<div id="flashwarn">⚡ 高频闪烁 · RAPID FLASHING</div>
+<div id="log"></div>
+<div id="bar">
+<button id="bStart" title="S">Start</button>
+<button id="bNext" title="SPACE">Next</button>
+<button id="bHold" title="H">Hold</button>
+<button id="bAuto" title="A">Auto</button>
+<button id="bMusic" title="M">Music</button>
+<div class="sep"></div>
+<button id="bM" title="-">Bpm−</button>
+<span class="r"><b id="bpmV">120</b> BPM</span>
+<button id="bP" title="+">Bpm+</button>
+<div class="sep"></div>
+<button id="bLog" title="L">Log</button>
+</div>
+<div id="intro"><div class="big">No Further Input Required</div><div class="sub">3D LIVESET · CLICK START · SPACE NEXT · H HOLD · A AUTO · M MUSIC</div></div>
+<div id="fallback">WEBGL 不可用 / WEBGL UNAVAILABLE<br>请换用支持 WebGL 的浏览器</div>
+<script>
+(function(){
+'use strict';
+// ══════════════════════════════════════════════════════════════
+// NFIR · IKEDA 3D LIVESET — 单文件自包含。raw WebGL + WebAudio。
+// 六视觉状态 × 四音乐状态 × NEXT/HOLD/AUTO/MUSIC。池田亮司语言。
+// ══════════════════════════════════════════════════════════════
+var $=function(id){return document.getElementById(id)};
+var clamp=function(v,a,b){return v<a?a:(v>b?b:v)};
+var lerp=function(a,b,t){return a+(b-a)*t};
+var TAU=Math.PI*2;
+var h=function(n){var x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)}; // 确定性 hash
+
+// ── 矩阵库（column-major）──────────────────────────────────────
+var MAT={
+ident:function(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1])},
+mul:function(a,b){var r=new Float32Array(16);for(var c=0;c<4;c++){for(var rw=0;rw<4;rw++){var s=0;for(var k=0;k<4;k++)s+=a[k*4+rw]*b[c*4+k];r[c*4+rw]=s}}return r},
+persp:function(fovy,aspect,n,f){var t=1/Math.tan(fovy/2),r=new Float32Array(16);r[0]=t/aspect;r[5]=t;r[10]=(f+n)/(n-f);r[11]=-1;r[14]=2*f*n/(n-f);return r},
+lookAt:function(eye,c,up){
+  var zx=eye[0]-c[0],zy=eye[1]-c[1],zz=eye[2]-c[2],zl=Math.hypot(zx,zy,zz)||1;zx/=zl;zy/=zl;zz/=zl;
+  var xx=up[1]*zz-up[2]*zy,xy=up[2]*zx-up[0]*zz,xz=up[0]*zy-up[1]*zx,xl=Math.hypot(xx,xy,xz)||1;xx/=xl;xy/=xl;xz/=xl;
+  var yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;
+  var r=new Float32Array(16);
+  r[0]=xx;r[4]=xy;r[8]=xz; r[12]=-(xx*eye[0]+xy*eye[1]+xz*eye[2]);
+  r[1]=yx;r[5]=yy;r[9]=yz; r[13]=-(yx*eye[0]+yy*eye[1]+yz*eye[2]);
+  r[2]=zx;r[6]=zy;r[10]=zz;r[14]=-(zx*eye[0]+zy*eye[1]+zz*eye[2]);
+  r[15]=1;return r;
+},
+rotX:function(a){var c=Math.cos(a),s=Math.sin(a),r=new Float32Array(16);r[0]=1;r[5]=c;r[6]=s;r[9]=-s;r[10]=c;r[15]=1;return r},
+rotY:function(a){var c=Math.cos(a),s=Math.sin(a),r=new Float32Array(16);r[0]=c;r[2]=-s;r[5]=1;r[8]=s;r[10]=c;r[15]=1;return r},
+rotZ:function(a){var c=Math.cos(a),s=Math.sin(a),r=new Float32Array(16);r[0]=c;r[1]=s;r[4]=-s;r[5]=c;r[10]=1;r[15]=1;return r}
+};
+
+// ── WebGL 初始化 ────────────────────────────────────────────────
+var canvas=$('c'),gl=canvas.getContext('webgl',{antialias:false,powerPreference:'high-performance'});
+if(!gl){$('fallback').style.display='flex';return}
+var dpr=Math.min(1.75,window.devicePixelRatio||1);
+function resize(){var w=Math.floor(innerWidth*dpr),hh=Math.floor(innerHeight*dpr);if(canvas.width!==w||canvas.height!==hh){canvas.width=w;canvas.height=hh;gl.viewport(0,0,w,hh)}
+  var o=$('ov');if(o.width!==w||o.height!==hh){o.width=w;o.height=hh}}
+addEventListener('resize',resize);resize();
+
+function sh(type,src){var s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error('shader: '+gl.getShaderInfoLog(s));return s}
+function prog(vs,fs){var p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error('prog: '+gl.getProgramInfoLog(p));return p}
+
+var VS='attribute vec3 aPos;uniform mat4 uMVP;uniform float uSize;void main(){gl_Position=uMVP*vec4(aPos,1.0);gl_PointSize=uSize;}';
+var FS='precision mediump float;uniform float uA;void main(){gl_FragColor=vec4(vec3(uA),1.0);}';
+var FLVS='attribute vec2 aP;void main(){gl_Position=vec4(aP,0.0,1.0);}';
+var pPts=prog(VS,FS),pLn=prog(VS,FS);
+var aPts=gl.getAttribLocation(pPts,'aPos'),uMVPP=gl.getUniformLocation(pPts,'uMVP'),uSz=gl.getUniformLocation(pPts,'uSize'),uAP=gl.getUniformLocation(pPts,'uA');
+var aLn=gl.getAttribLocation(pLn,'aPos'),uMVPL=gl.getUniformLocation(pLn,'uMVP'),uAL=gl.getUniformLocation(pLn,'uA');
+var ptsBuf=gl.createBuffer(),lnBuf=gl.createBuffer();
+
+gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+gl.disable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
+
+// ── 几何暂存 ───────────────────────────────────────────────────
+var PTCAP=9000,LNCAP=16000;
+var geo={pts:new Float32Array(PTCAP*3),ln:new Float32Array(LNCAP*3),nP:0,nL:0};
+function addPt(x,y,z){var i=geo.nP*3;if(i+2>=geo.pts.length)return;geo.pts[i]=x;geo.pts[i+1]=y;geo.pts[i+2]=z;geo.nP++}
+function addLn(x0,y0,z0,x1,y1,z1){var i=geo.nL*3;if(i+5>=geo.ln.length)return;geo.ln[i]=x0;geo.ln[i+1]=y0;geo.ln[i+2]=z0;geo.ln[i+3]=x1;geo.ln[i+4]=y1;geo.ln[i+5]=z1;geo.nL+=2}
+function flush(mode,M,alpha){
+  var n=(mode==='pts')?geo.nP:geo.nL;if(!n)return;
+  var isPts=(mode==='pts'),buf=isPts?ptsBuf:lnBuf,p=isPts?pPts:pLn,arr=isPts?geo.pts:geo.ln;
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  gl.bufferData(gl.ARRAY_BUFFER,arr.subarray(0,n*3),gl.DYNAMIC_DRAW);
+  gl.useProgram(p);
+  if(isPts){gl.enableVertexAttribArray(aPts);gl.vertexAttribPointer(aPts,3,gl.FLOAT,false,0,0);gl.uniform1f(uSz,ptSize);gl.uniform1f(uAP,alpha);gl.uniformMatrix4fv(uMVPP,false,M)}
+  else{gl.enableVertexAttribArray(aLn);gl.vertexAttribPointer(aLn,3,gl.FLOAT,false,0,0);gl.uniform1f(uAL,alpha);gl.uniformMatrix4fv(uMVPL,false,M)}
+  gl.drawArrays(isPts?gl.POINTS:gl.LINES,0,n);
+  geo.nP=0;geo.nL=0;
+}
+
+// ── 静态几何预计算 ─────────────────────────────────────────────
+// GRID 地面网格
+var G={lines:null};
+(function(){var N=24,S=22,arr=[];for(var i=0;i<=N;i++){var v=-S+i*(2*S/N);arr.push([v,0,-S,v,0,S]);arr.push([-S,0,v,S,0,v])}G.lines=arr})();
+// FIELD 粒子场（2800 点，静态朝向，CPU 旋转）
+var F={x:new Float32Array(2800),y:new Float32Array(2800),z:new Float32Array(2800)};
+(function(){for(var i=0;i<2800;i++){F.x[i]=(h(i)*2-1)*19;F.y[i]=(h(i*3)*2-1)*17;F.z[i]=(h(i*5)*2-1)*19}})();
+// DATA 线框立方体（单位棱，size 缩放）
+var C={verts:new Float32Array(8*3),edges:[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]};
+(function(){var v=[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];for(var i=0;i<8;i++){C.verts[i*3]=v[i][0];C.verts[i*3+1]=v[i][1];C.verts[i*3+2]=v[i][2]}})();
+var CUBES=[[0.8,2.9,0.4,-0.55,0.2],[1.4,0,-0.35,0.4,-0.3],[2.1,-3.2,0.22,-0.3,0.35]];
+var DPLANE={lines:null};
+(function(){var N=14,S=16,arr=[];for(var i=0;i<=N;i++){var v=-S+i*(2*S/N);arr.push([v,-4.5,-S,v,-4.5,S]);arr.push([-S,-4.5,v,S,-4.5,v])}DPLANE.lines=arr})();
+// RING 同心环（每环 96 段，预设平面旋转）
+var RING={r:[]};
+(function(){var defs=[[96,5,0,0,0],[96,8,Math.PI/2,0,0],[96,11,0,0,Math.PI/2],[96,14,Math.PI/4,Math.PI/4,0],[128,17,0,Math.PI/3,0]];
+for(var k=0;k<defs.length;k++){var d=defs[k],n=d[0],rr=d[1],ax=d[2],ay=d[3],az=d[4],cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az),xs=[],ys=[],zs=[];
+for(var j=0;j<=n;j++){var th=j/n*TAU,x=rr*Math.cos(th),y=rr*Math.sin(th),z0=0;
+var x1=x*cz-y*sz,y1=x*sz+y*cz;
+var x2=x1,y2=y1*cx-z0*sx,z2=y1*sx+z0*cx;
+var x3=x2*cy+z2*sy,z3=-x2*sy+z2*cy;
+xs.push(x3);ys.push(y2);zs.push(z3)}
+RING.r.push({n:n,xs:xs,ys:ys,zs:zs})}})();
+// BURST 碎片场（2000 点，方向/速度/半径）
+var B={dx:new Float32Array(2000),dy:new Float32Array(2000),dz:new Float32Array(2000),sp:new Float32Array(2000),mr:new Float32Array(2000)};
+(function(){for(var i=0;i<2000;i++){var x=h(i)*2-1,y=(h(i*3)*2-1)*0.7,z=h(i*5)*2-1,l=Math.hypot(x,y,z)||1;if(l<0.15){x+=0.5;y+=0.3;l=Math.hypot(x,y,z)}B.dx[i]=x/l;B.dy[i]=y/l;B.dz[i]=z/l;B.sp[i]=2.5+h(i*7)*6;B.mr[i]=3+h(i*11)*11}})();
+// RAIN 数据雨（20×20 竖线）
+var RN={gx:[],gz:[],len:[],sp:[],ph:[]};
+(function(){var N=20,S=14;for(var i=0;i<N;i++)for(var j=0;j<N;j++){RN.gx.push(-S+i*(2*S/(N-1)));RN.gz.push(-S+j*(2*S/(N-1)));RN.len.push(1.5+h((i*N+j)*3)*4.5);RN.sp.push(1.6+h((i*N+j)*7)*3.2);RN.ph.push(h((i*N+j)*13)*TAU)}})();
+
+// ── 系统状态 ───────────────────────────────────────────────────
+var VIS_NAMES=['GRID','FIELD','DATA','RAIN','RING','BURST'];
+var MUS_NAMES=['SILENT','PULSE','SEQUENCE','DENSITY'];
+var state=0,hold=false,auto=true,musicState=0,pendingMusic=-1;
+var running=false,bpm=120,stepRef=0,t0=0,elapsed=0;
+var E=0,Bn=0,Hi=0; // 能量 band: 整体/低频/高频
+var flash=0,shake=0,glitchAmt=0,ptSize=2.2;
+var th=0,globalT=0;
+var events=[];function evt(e){events.push(e)}
+var logLines=[];function fmtT(s){var m=Math.floor(s/60),x=Math.floor(s%60);return(m<10?'0':'')+m+':'+(x<10?'0':'')+x}
+function log(ev,detail){logLines.push({t:fmtT(elapsed),ev:ev,detail:detail});if(logLines.length>90)logLines.shift();renderLog()}
+function renderLog(){var el=$('log');el.innerHTML='';for(var i=Math.max(0,logLines.length-5);i<logLines.length;i++){var d=document.createElement('div');d.textContent=logLines[i].t+'  '+logLines[i].ev+(logLines[i].detail?'  '+logLines[i].detail:'');el.appendChild(d)}}
+
+// ── 音频引擎 ───────────────────────────────────────────────────
+var actx=null,master=null,comp=null,analyser=null,freqData=null,noiseBuf=null;
+var droneNodes=null;
+function initAudio(){
+  actx=new (window.AudioContext||window.webkitAudioContext)();
+  comp=actx.createDynamicsCompressor();comp.threshold.value=-18;comp.ratio.value=6;comp.connect(actx.destination);
+  master=actx.createGain();master.gain.value=0.85;master.connect(comp);
+  analyser=actx.createAnalyser();analyser.fftSize=1024;analyser.smoothingTimeConstant=0.7;analyser.connect(comp);
+  master.connect(analyser);
+  freqData=new Uint8Array(analyser.frequencyBinCount);
+  noiseBuf=actx.createBuffer(1,actx.sampleRate,actx.sampleRate);
+  var d=noiseBuf.getChannelData(0);for(var i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+}
+function kick(t,vel){var o=actx.createOscillator(),g=actx.createGain();o.type='sine';
+  o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(38,t+0.12);
+  g.gain.setValueAtTime(vel*0.85,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.22);
+  o.connect(g);g.connect(master);o.start(t);o.stop(t+0.25)}
+function click(t,vel){var o=actx.createOscillator(),g=actx.createGain(),hp=actx.createBiquadFilter();
+  o.type='square';o.frequency.value=1900;hp.type='highpass';hp.frequency.value=1200;
+  g.gain.setValueAtTime(vel*0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.05);
+  o.connect(hp);hp.connect(g);g.connect(master);o.start(t);o.stop(t+0.06)}
+function bass(freq,t,dur,vel){var o=actx.createOscillator(),g=actx.createGain(),lp=actx.createBiquadFilter();
+  o.type='sawtooth';o.frequency.value=freq;lp.type='lowpass';
+  lp.frequency.setValueAtTime(900,t);lp.frequency.exponentialRampToValueAtTime(200,t+dur);
+  g.gain.setValueAtTime(vel*0.26,t);g.gain.setValueAtTime(vel*0.26,t+dur*0.6);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  o.connect(lp);lp.connect(g);g.connect(master);o.start(t);o.stop(t+dur+0.05)}
+function noiseHit(t,dur,freq,vel){var s=actx.createBufferSource();s.buffer=noiseBuf;
+  var bp=actx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=freq;bp.Q.value=1.1;
+  var g=actx.createGain();g.gain.setValueAtTime(vel*0.4,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  s.connect(bp);bp.connect(g);g.connect(master);s.start(t);s.stop(t+dur+0.02)}
+function blip(freq,t,vel){var o=actx.createOscillator(),g=actx.createGain();
+  o.type='sine';o.frequency.value=freq;
+  g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vel*0.16,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+0.3);
+  o.connect(g);g.connect(master);o.start(t);o.stop(t+0.32)}
+function droneOn(){if(droneNodes||!actx)return;var c=actx.currentTime;
+  var g=actx.createGain(),o1=actx.createOscillator(),o2=actx.createOscillator(),lp=actx.createBiquadFilter(),lfo=actx.createOscillator(),lg=actx.createGain();
+  o1.type='sawtooth';o1.frequency.value=55;o2.type='sawtooth';o2.frequency.value=55.4;
+  lp.type='lowpass';lp.frequency.value=340;lp.Q.value=2.5;
+  g.gain.value=0;g.gain.linearRampToValueAtTime(0.05,c+1.4);
+  lfo.frequency.value=0.07;lg.gain.value=160;lfo.connect(lg);lg.connect(lp.frequency);
+  o1.connect(lp);o2.connect(lp);lp.connect(g);g.connect(master);
+  o1.start(c);o2.start(c);lfo.start(c);
+  droneNodes={g:g,o1:o1,o2:o2,lfo:lfo}}
+function droneOff(){if(!droneNodes)return;var c=actx.currentTime,d=droneNodes;droneNodes=null;
+  d.g.gain.cancelScheduledValues(c);d.g.gain.setValueAtTime(d.g.gain.value,c);d.g.gain.linearRampToValueAtTime(0.0001,c+0.8);
+  d.o1.stop(c+0.9);d.o2.stop(c+0.9);d.lfo.stop(c+0.9)}
+
+var A1=55,bassSeq=[0,0,7,0,3,0,10,7],scaleN=[0,3,5,7,10,12,15],melIdx=0;
+function sched(){if(!running)return;if(actx.state!=='running')actx.resume();var sd=60/bpm/4;
+  while(nextNoteTime<clockNow()+0.12){scheduleStep(stepRef,nextNoteTime);nextNoteTime+=sd;stepRef=(stepRef+1)%64}}
+function scheduleStep(s,t){
+  var beat=s%16,bar=(s%16===0),isBeat=(beat%4===0),off=(beat%4===2),ms=musicState;
+  if(bar&&pendingMusic>=0){musicState=pendingMusic;pendingMusic=-1;evt('music')}
+  if(ms>=1){
+    if(isBeat)kick(t,0.45+E*0.5);
+    if(off)click(t,0.35+E*0.4);
+  }
+  if(ms>=2){
+    if(beat%8===0)bass(A1*Math.pow(2,bassSeq[beat%8]/12),t,stepDur()*1.9,0.7);
+    else if(beat%8===4)bass(A1*Math.pow(2,bassSeq[(beat%8+2)%8]/12),t,stepDur()*0.9,0.5);
+    if(beat%2===0&&Math.random()<0.3){var f=220*Math.pow(2,scaleN[(melIdx=(melIdx+1+(Math.random()<0.5?1:0))%scaleN.length)]/12);blip(f,t,0.5)}
+  }
+  if(ms>=3){
+    if(off)noiseHit(t,0.05,1100+Math.random()*3000,0.85);
+    if(Math.random()<0.4)noiseHit(t,0.03,2600+Math.random()*4200,0.32);
+    if(isBeat)click(t,0.55);
+    if(beat%8===6)bass(A1*Math.pow(2,(bassSeq[beat%8]+12)/12),t,stepDur()*0.9,0.5);
+  }
+  if(ms>=2)droneOn();else droneOff();
+  if(isBeat)evt('beat');
+  if(bar)evt('bar');
+  if(s%64===0){phraseCount++;if(phraseCount>1&&phraseCount%2===0)evt('phrase')}
+}
+var nextNoteTime=0,timer=null,phraseCount=0;
+function stepDur(){return 60/bpm/4}
+// 自适应时钟：AudioContext 正常则用 currentTime；被挂起/无音频设备时退回 performance 时钟，
+// 保证 transport、状态机与音乐门控照常推进（声音恢复后自动衔接）。
+var lastAudioTime=0,lastAudioPerf=performance.now(),fallbackBase=0;
+function clockNow(){
+  if(actx){
+    var ct=actx.currentTime;
+    if(ct>lastAudioTime){fallbackBase+=ct-lastAudioTime;lastAudioTime=ct;lastAudioPerf=performance.now()}
+    return actx.state==='running'?ct:fallbackBase+(performance.now()-lastAudioPerf)/1000;
+  }
+  return (performance.now()-t0)/1000;
+}
+function startAudio(){if(!actx)initAudio();actx.resume();running=true;t0=performance.now();lastAudioTime=0;lastAudioPerf=performance.now();fallbackBase=0;phraseCount=0;nextNoteTime=clockNow()+0.08;timer=setInterval(sched,25);log('START','transport @ '+bpm+' BPM');$('intro').style.display='none';renderHud()}
+function stopAudio(){running=false;if(timer){clearInterval(timer);timer=null}droneOff();log('STOP','')}
+function setBpm(d){bpm=clamp(bpm+d,72,156);log('BPM',bpm);renderHud()}
+function cycleMusic(){pendingMusic=(musicState+1)%4;log('MUSIC→',MUS_NAMES[pendingMusic]+' (bar gate)');renderHud()}
+
+// ── 状态机 ─────────────────────────────────────────────────────
+function nextVisual(target,reason){if(hold&&reason!=='manual-hold-override')return;
+  state=((target%6)+6)%6;flash=1.35;glitchAmt=1;log('VISUAL',VIS_NAMES[state]+' · '+reason);renderHud()}
+function weightedNext(){var r=Math.random();if(r<0.3)return state;if(r<0.7)return(state+1)%6;if(r<0.9)return(state+2)%6;return(state+5)%6}
+function cycleNext(){if(hold){log('NEXT','held — press H to release');return}nextVisual(state+1,'next')}
+function toggleHold(){hold=!hold;log('HOLD',hold?'on':'off');renderHud()}
+function toggleAuto(){auto=!auto;log('AUTO',auto?'on':'off');renderHud()}
+function doReset(){state=0;hold=false;auto=true;musicState=0;pendingMusic=-1;phraseCount=0;flash=1;log('RESET','GRID · SILENT');renderHud()}
+
+// ── 六视觉状态渲染 ────────────────────────────────────────────
+function drawState(st,t,dt){
+  var sp=1+E*2.6;
+  switch(st){
+  case 0:{ // GRID — 透视地面网格 + 稀疏星点
+    for(var i=0;i<G.lines.length;i++){var L=G.lines[i];addLn(L[0],L[1],L[2],L[3],L[4],L[5])}
+    flush('ln',MAT.ident(),0.5+E*0.4);
+    for(var k=0;k<500;k++){var y=2+h(k*7)*20*sp;addPt((h(k)*2-1)*30,y,(h(k*13)*2-1)*30)}
+    flush('pts',MAT.ident(),(0.5+0.3*Math.sin(t*0.7+E))*ptAlpha());
+    break}
+  case 1:{ // FIELD — 3D 粒子场
+    var a=t*0.05,b=t*0.03,sa=Math.sin(a),ca=Math.cos(a),sb=Math.sin(b),cb=Math.cos(b);
+    for(var i=0;i<2800;i++){var x=F.x[i],y=F.y[i],z=F.z[i];
+      var x1=x*ca+z*sa,z1=-x*sa+z*ca;
+      var y1=y*cb-z1*sb,z2=y*sb+z1*cb;
+      addPt(x1*sp,y1*sp,z2*sp)}
+    flush('pts',MAT.ident(),(0.55+E*0.4)*ptAlpha());
+    break}
+  case 2:{ // DATA — 线框立方堆 + 数据平面 + 火花
+    for(var c=0;c<CUBES.length;c++){
+      var cu=CUBES[c],s=cu[0],cy=cu[1],aY=t*cu[2],aX=t*cu[3]+cu[4];
+      var caX=Math.cos(aX),saX=Math.sin(aX),caY=Math.cos(aY),saY=Math.sin(aY);
+      for(var e=0;e<C.edges.length;e++){var e0=C.edges[e][0]*3,e1=C.edges[e][1]*3;
+        var vx=C.verts[e0]*s,vy=C.verts[e0+1]*s,vz=C.verts[e0+2]*s;
+        var y1=vy*caX-vz*saX,z1=vy*saX+vz*caX;
+        var x2=vx*caY+z1*saY,z2=-vx*saY+z1*caY;
+        var ux=C.verts[e1]*s,uy=C.verts[e1+1]*s,uz=C.verts[e1+2]*s;
+        var q1=uy*caX-uz*saX,r1=uy*saX+uz*caX;
+        var p2=ux*caY+r1*saY,r2=-ux*saY+r1*caY;
+        addLn(x2,y1+cy,z2,p2,q1+cy,r2)}}
+    for(var d=0;d<DPLANE.lines.length;d++){var L2=DPLANE.lines[d];
+      var g=t*0.08,cg=Math.cos(g),sg=Math.sin(g);
+      addLn(L2[0]*cg+L2[2]*sg,L2[1],-L2[0]*sg+L2[2]*cg,L2[3]*cg+L2[5]*sg,L2[4],-L2[3]*sg+L2[5]*cg)}
+    flush('ln',MAT.ident(),(0.8+E*0.5));
+    for(var s2=0;s2<300;s2++){var px=(h(s2)*2-1)*6*sp,py=h(s2*3)*8*sp-1,pz=(h(s2*5)*2-1)*6*sp;addPt(px,py,pz)}
+    flush('pts',MAT.ident(),(0.4+E*0.5)*ptAlpha());
+    break}
+  case 3:{ // RAIN — 数据雨 + 扫描线
+    var span=26;
+    for(var i=0;i<RN.gx.length;i++){
+      var yTop=((t*RN.sp[i]+RN.ph[i])%span)-span/2;
+      addLn(RN.gx[i],yTop,RN.gz[i],RN.gx[i],yTop-RN.len[i],RN.gz[i])}
+    flush('ln',MAT.ident(),0.42+E*0.4);
+    var sw=((t*1.6)%24)-12;
+    addLn(-17,sw,1,17,sw,1);
+    flush('ln',MAT.ident(),(0.75+E*0.5));
+    for(var p=0;p<700;p++){var px=(h(p)*2-1)*20,py=((t*(1+h(p*3)*3)+h(p*5)*12)%26)-13,pz=(h(p*7)*2-1)*3+1;addPt(px,py,pz)}
+    flush('pts',MAT.ident(),(0.5+E*0.4)*ptAlpha());
+    break}
+  case 4:{ // RING — 多层同心环
+    var g=t*0.07;
+    for(var k=0;k<RING.r.length;k++){var r=RING.r[k],gg=g+k*0.31,cgg=Math.cos(gg),sgg=Math.sin(gg);
+      for(var j=0;j<r.n;j++){var x=r.xs[j]*sp,y=r.ys[j]*sp,z=r.zs[j]*sp;
+        var x3=x*cgg+z*sgg,z3=-x*sgg+z*cgg;
+        addPt(x3,y,z3);
+        var x2=r.xs[j+1]*sp,y2=r.ys[j+1]*sp,z2=r.zs[j+1]*sp;
+        var x4=x2*cgg+z2*sgg,z4=-x2*sgg+z2*cgg;
+        addLn(x3,y,z3,x4,y2,z4)}}
+    flush('ln',MAT.ident(),(0.7+E*0.5));
+    flush('pts',MAT.ident(),(0.55+E*0.5)*ptAlpha());
+    break}
+  case 5:{ // BURST — 碎片爆裂 + glitch 横带
+    for(var i=0;i<2000;i++){var d=((t*B.sp[i]+B.ph[i])%B.mr[i]);addPt(B.dx[i]*d*sp,B.dy[i]*d*sp,B.dz[i]*d*sp)}
+    flush('pts',MAT.ident(),(0.6+E*0.55)*ptAlpha());
+    for(var g2=0;g2<44;g2++){var y=Math.random()*26-13,x0=Math.random()*30-15;addLn(x0,y,-12,x0+2+Math.random()*9,y,12)}
+    flush('ln',MAT.ident(),(0.3+E*0.5));
+    break}
+  }
+  // glitch 第二通道
+  if(glitchAmt>0.06){
+    for(var g3=0;g3<10;g3++){var yy=Math.random()*30-15,xx=Math.random()*26-13,ll=1+Math.random()*14;addLn(xx,yy,2,xx+ll,yy,2)}
+    flush('ln',MAT.ident(),glitchAmt*0.5);
+  }
+}
+function ptAlpha(){return 0.7+E*0.6}
+
+// ── 主循环 ─────────────────────────────────────────────────────
+var ov=$('ov'),ovx=ov.getContext('2d'),PV=null,last=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;globalT+=dt;
+  if(running)elapsed=(now-t0)/1000;
+  // 消费音频事件
+  while(events.length){var e=events.shift();
+    if(e==='beat'){flash=1;shake=0.7}
+    else if(e==='phrase'){if(auto&&!hold)nextVisual(weightedNext(),'auto')}
+    else if(e==='music'){log('MUSIC',MUS_NAMES[musicState]);renderHud()}}
+  // 能量
+  if(actx&&running){analyser.getByteFrequencyData(freqData);
+    var b=0,m=0,hh=0;for(var i=0;i<64;i++)b+=freqData[i];for(var j=64;j<160;j++)m+=freqData[j];for(var k=160;k<400;k++)hh+=freqData[k];
+    Bn=lerp(Bn,clamp((b/64)/255*2.4,0,1.2),0.14);Hi=lerp(Hi,clamp((hh/240)/255*2.8,0,1.3),0.18);
+    E=clamp(Bn*0.6+Hi*0.4,0,1.3);
+  } else {E=lerp(E,0,0.06)}
+  flash*=Math.exp(-dt*8.5);shake*=Math.exp(-dt*5);glitchAmt=clamp(glitchAmt*Math.exp(-dt*6),0,1);
+  if(Math.random()<0.012+Hi*0.02)glitchAmt=1;
+  // 相机
+  th+=dt*(0.05+E*1.3);
+  var ph=0.3*Math.sin(globalT*0.11),R=23+E*3.4+0.5*Math.sin(globalT*0.23);
+  var ex=R*Math.cos(ph)*Math.sin(th),ey=R*Math.sin(ph)+Math.sin(globalT*0.4)*0.4,ez=R*Math.cos(ph)*Math.cos(th);
+  if(shake>0.01){ex+=(Math.random()*2-1)*shake*0.6;ey+=(Math.random()*2-1)*shake*0.4;ez+=(Math.random()*2-1)*shake*0.6}
+  var P=MAT.persp(1.15,canvas.width/canvas.height,0.1,120);
+  var V=MAT.lookAt([ex,ey,ez],[0,0,0],[0,1,0]);
+  PV=MAT.mul(P,V);
+  ptSize=(1.4+E*3.4)*dpr;
+  // 绘制
+  drawState(state,globalT,dt);
+  // 覆盖层闪光
+  ovx.setTransform(dpr,0,0,dpr,0,0);ovx.clearRect(0,0,innerWidth,innerHeight);
+  if(flash>0.02){ovx.globalAlpha=clamp(flash*0.34,0,0.85);ovx.fillStyle='#fff';ovx.fillRect(0,0,innerWidth,innerHeight);ovx.globalAlpha=1}
+  // HUD（4Hz 节流）
+  if(Math.floor(now/250)!==Math.floor(lastHud/250))renderHud();lastHud=now;
+}
+var lastHud=0;
+function renderHud(){
+  $('hudV').textContent=VIS_NAMES[state];
+  $('hudM').textContent=MUS_NAMES[musicState];
+  $('hudB').textContent='BPM '+bpm+' · '+fmtT(elapsed)+' · bar '+(Math.floor(stepRef/16)%4+1)+' / '+((stepRef%16)+1);
+  $('hudA').textContent=(auto?'AUTO ●':'AUTO ○')+(hold?' · HOLD ●':' · HOLD ○');
+  $('hudA').style.color=auto? '#fff':'rgba(255,255,255,.38)';
+  $('bpmV').textContent=bpm;
+  $('bStart').textContent=running?'Stop':'Start';
+  $('bHold').className=hold?'on':'';
+  $('bAuto').className=auto?'on':'';
+  $('bMusic').textContent='Music·'+MUS_NAMES[musicState].slice(0,2);
+}
+
+// ── 控制 ───────────────────────────────────────────────────────
+$('bStart').addEventListener('pointerdown',function(ev){ev.stopPropagation();if(running)stopAudio();else startAudio()});
+$('bNext').addEventListener('pointerdown',function(ev){ev.stopPropagation();if(!running)startAudio();cycleNext()});
+$('bHold').addEventListener('pointerdown',function(ev){ev.stopPropagation();toggleHold()});
+$('bAuto').addEventListener('pointerdown',function(ev){ev.stopPropagation();toggleAuto()});
+$('bMusic').addEventListener('pointerdown',function(ev){ev.stopPropagation();if(!running)startAudio();cycleMusic()});
+$('bM').addEventListener('pointerdown',function(ev){ev.stopPropagation();setBpm(-2)});
+$('bP').addEventListener('pointerdown',function(ev){ev.stopPropagation();setBpm(2)});
+$('bLog').addEventListener('pointerdown',function(ev){ev.stopPropagation();
+  var blob=new Blob([JSON.stringify(logLines,null,1)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='nfir-ikeda3d-log.json';a.click();log('LOG','exported')});
+canvas.addEventListener('pointerdown',function(){if(!running)startAudio();else cycleNext()});
+addEventListener('keydown',function(e){
+  if(e.code==='Space'){e.preventDefault();if(!running)startAudio();else cycleNext()}
+  else if(e.key==='h'||e.key==='H')toggleHold();
+  else if(e.key==='a'||e.key==='A')toggleAuto();
+  else if(e.key==='m'||e.key==='M'){if(!running)startAudio();cycleMusic()}
+  else if(e.key==='s'||e.key==='S'){if(running)stopAudio();else startAudio()}
+  else if(e.key==='+'||e.key==='=')setBpm(2);
+  else if(e.key==='-')setBpm(-2);
+  else if(e.key==='r'||e.key==='R')doReset();
+  else if(e.key==='l'||e.key==='L')$('bLog').click();
+});
+document.addEventListener('contextmenu',function(e){e.preventDefault()});
+renderHud();
+requestAnimationFrame(frame);
+})();
+</script></body></html>
