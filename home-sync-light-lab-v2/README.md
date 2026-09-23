@@ -1,79 +1,66 @@
-# Acoustic Sync Light Lab V2
+# Open Show Sync Lab — Masked Watermark update
 
-V2 turns the first browser proof-of-concept into a learning rig for modern synchronization design.
+This replaces the audible 4-FSK transmitter in the existing browser demo with an experimental **masked spectral watermark**.
 
-## What changed
+## Why it changed
 
-- Receiver DSP moved from animation-frame polling to **AudioWorklet**.
-- The acoustic packet carries an **absolute show-time observation**, not LED values.
-- The receiver maintains an affine clock model:
+The previous version proved the clock / PLL / holdover architecture, but its pure tones were audible and became unreliable when the level was reduced. This update separates the two problems:
 
-  SHOW_TIME = RATE × LOCAL_MONOTONIC_TIME + OFFSET
+- keep the clock discipline layer;
+- replace the audible modem with a programme-dependent watermark.
 
-- Recent observations are fitted to estimate rate error / drift.
-- Small clock errors are slewed by filtering the model; large errors trigger reacquisition.
-- The receiver enters **HOLDOVER** if packets disappear and keeps running from its local monotonic clock.
-- Diagnostics expose lock state, residual error, drift ppm, packet age, valid packets, CRC failures, sample rate, and browser output-latency estimate.
-- A/B/C lighting remains local choreography so the transport can later be replaced without changing the cue engine.
+## Current watermark design
 
-## Why this is closer to a real system
+The browser does **not add a beep or noise carrier**. A loaded audio file passes through 16 pairs of narrow peaking-EQ filters between about 2.6 and 9.2 kHz.
 
-The transport and timeline are separated:
+For each code pattern:
 
-1. **Transport** tells a node where the show is.
-2. **Clock discipline** turns noisy observations into a smooth local show clock.
-3. **Cue engine** decides what Group A/B/C should do at that time.
+1. first 100 ms applies +pattern;
+2. next 100 ms applies the complementary −pattern;
+3. the receiver measures the log-energy difference of each nearby frequency pair;
+4. subtracting the two halves removes much of the programme's natural spectral bias;
+5. the resulting vector is correlated against known code patterns.
 
-This is the same architecture we can keep when replacing browser 4-FSK with an audio watermark, LTC, fingerprint matching, ESP-NOW, or a wired/network time source.
+One frame per second:
 
-## Suggested experiments
+- 0–200 ms: preamble
+- 200–400 ms: minute ID 0–59
+- 400–600 ms: second ID 0–59
+- 600–1000 ms: untouched programme
 
-1. Baseline: two computers at 30 cm, quiet room, MID carrier.
-2. Distance: 1 m, 3 m, 5 m.
-3. Interference: music from the same speaker.
-4. Codec path: play a screen recording / streamed copy and see whether packets survive.
-5. Holdover: mute the sender for 5 s, 20 s, 60 s.
-6. Profile: compare MID vs HIGH.
-7. Offset: adjust acoustic offset and record residual error.
+Minute + second gives an absolute show position for programmes up to one hour.
 
-## 2026 upgrade path
+## Receiver
 
-### Browser layer
-- AudioWorklet for real-time DSP.
-- AudioContext.currentTime as the local monotonic audio clock.
-- AudioContext.getOutputTimestamp() / outputLatency for output-path timing diagnostics.
+The receiver runs in an AudioWorklet and uses Goertzel energy measurements instead of FFT UI polling.
 
-### Open acoustic physical layers to study
-- ggwave: compact FSK + ECC data-over-sound library.
-- audiowmark: blind audio watermarking using a spectral patchwork approach.
-- browser 4-FSK projects with AudioWorklet, framing, CRC/ACK and modem tests.
-- libltc / LTC.wasm: standard SMPTE LTC interop.
+Decoded anchors discipline an affine clock:
 
-### Timeline recovery
-Use two complementary modes:
-- **Watermark/timecode** for precise absolute show position.
-- **Fingerprint** for recovery / relocation when the watermark is unavailable.
+SHOW_TIME = RATE × RECEIVER_AUDIO_CLOCK + OFFSET
 
-### Hardware layer
-Recommended next node:
-- ESP32-S3
-- I2S microphone such as INMP441
-- local cue table
-- addressable LEDs
-- ESP-NOW as a parallel RF clock / provisioning path
+The local audio clock continues through short packet losses (holdover).
 
-The current ESP-NOW SDK includes internal time-synchronization APIs. This is useful for a hybrid design where acoustic sync keeps a node aligned with the sound it hears, while RF provides a global simultaneous clock for large fields.
+## Perceptual A/B test
 
-### Musical-network baseline
-Ableton Link is worth keeping as a separate comparison path. It synchronizes tempo, beat and phase across peers, but intentionally does not impose one identical absolute media timeline. This makes it useful for VJ / music interaction, but different from absolute show-time recovery.
+The transmitter exposes:
 
-## V3 target
+- A · ORIGINAL
+- B · WATERMARKED
+- Δ · DIFFERENCE ×8
 
-- packet confidence and preamble correlation
-- Reed-Solomon or convolutional FEC + interleaving
-- automatic constant-delay calibration
-- LTC receive mode
-- WebSocket/UDP bridge for Resolume / TouchDesigner / Processing
-- ESP32-S3 receiver firmware
-- experiment logger / CSV export
-- network-vs-acoustic A/B comparison
+Start around 1.2–1.5 dB only to prove decoding, then lower the watermark toward 0.5–0.8 dB while checking whether A/B remains perceptually negligible.
+
+## Important limitation
+
+This is an original open experimental spectral-patchwork design. It is **not** Evixar Another Track and it does not reproduce the audiowmark algorithm. It is intentionally built as a learning prototype so the watermark transport can later be replaced without changing the clock or cue engine.
+
+## Next steps
+
+- improve adaptive masking based on programme energy around each frequency pair;
+- add confidence-weighted PLL observations;
+- add FEC / repeated IDs;
+- add offline audio-file encoder/export;
+- add LTC input as a reference path;
+- add CSV test logging;
+- port detector to ESP32-S3 + I2S microphone;
+- compare acoustic sync against ESP-NOW global clock.
