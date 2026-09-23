@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acoustic Sync Light Lab V2</title>
+<style>
+:root{--bg:#060606;--fg:#eee;--muted:#777;--line:#292929;--ok:#6dff8f;--warn:#ffbf5b;--bad:#ff5959}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+header{padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#060606e8;backdrop-filter:blur(12px);z-index:2;display:flex;justify-content:space-between}
+main{max-width:1240px;margin:auto;padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.panel{border:1px solid var(--line);padding:14px;background:#0a0a0a}.wide{grid-column:1/-1}
+h1,h2{font-weight:500;margin:0}h1{font-size:13px;letter-spacing:.18em}h2{font-size:11px;color:#aaa;letter-spacing:.14em;margin-bottom:10px}
+.tc{font-size:clamp(36px,6vw,78px);line-height:1;letter-spacing:-.055em;font-variant-numeric:tabular-nums}
+.controls{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}button,select,input{font:inherit}button,select{background:#111;color:#eee;border:1px solid #3a3a3a;padding:8px 10px}button.primary{background:#eee;color:#090909}.kv{display:grid;grid-template-columns:150px 1fr;gap:5px 12px}.kv div:nth-child(odd){color:#777}
+.row{display:grid;grid-template-columns:120px 1fr 80px;gap:10px;align-items:center;margin:8px 0}.meter{height:8px;border:1px solid #303030;background:#050505}.meter i{display:block;height:100%;width:0;background:#eee}
+.status{display:flex;align-items:center;gap:7px}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.ok{background:var(--ok);box-shadow:0 0 10px var(--ok)}.dot.warn{background:var(--warn);box-shadow:0 0 10px var(--warn)}.dot.bad{background:var(--bad);box-shadow:0 0 10px var(--bad)}
+.diag{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.card{border:1px solid #222;padding:9px}.v{font-size:20px;margin-top:3px}.k{color:#777}
+.lights{display:grid;grid-template-columns:repeat(18,1fr);gap:5px}.lamp{aspect-ratio:1;border-radius:50%;background:#111;border:1px solid #222;transition:background .02s,box-shadow .02s}
+.note{color:#777;font-size:11px}.tabs{display:flex;gap:6px}.tabs button.on{background:#eee;color:#111}
+.hidden{display:none}.bar{height:1px;background:#222;margin:12px 0}
+@media(max-width:780px){main{grid-template-columns:1fr}.wide{grid-column:auto}.diag{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:90px 1fr 62px}.lights{grid-template-columns:repeat(9,1fr)}}
+</style>
+</head>
+<body>
+<header><div><h1>ACOUSTIC SYNC LIGHT LAB V2</h1><div class="note">AudioWorklet DSP · absolute show clock · clock discipline · holdover</div></div><div class="status"><span id="dot" class="dot"></span><span id="status">IDLE</span></div></header>
+<main>
+<section class="panel wide">
+  <div class="tabs">
+    <button id="txTab" class="on">TRANSMITTER</button>
+    <button id="rxTab">RECEIVER</button>
+    <button id="learnTab">LEARN</button>
+  </div>
+  <div class="bar"></div>
+
+  <div id="tx">
+    <h2>MASTER / ACOUSTIC TIMECODE TRANSMITTER</h2>
+    <div id="txTc" class="tc">00:00.000</div>
+    <div class="controls">
+      <button id="start" class="primary">START</button><button id="pause">PAUSE</button><button id="reset">RESET</button><button id="burst">SYNC BURST</button>
+    </div>
+    <div class="row"><span>Carrier profile</span><select id="txProfile"><option value="mid">MID 2.4–5.9 kHz</option><option value="high">HIGH 7–11 kHz</option></select><span></span></div>
+    <div class="row"><span>Output gain</span><input id="gain" type="range" min="0.01" max="0.22" value="0.06" step="0.01"><span id="gainText">0.06</span></div>
+    <div class="row"><span>BPM</span><input id="bpm" type="range" min="60" max="180" value="100" step="1"><span id="bpmText">100</span></div>
+    <div class="note">Frame timestamp refers to the end of the acoustic packet, reducing systematic decode delay. The receiver estimates the remaining constant acoustic/input offset separately.</div>
+  </div>
+
+  <div id="rx" class="hidden">
+    <h2>CLIENT / MICROPHONE DECODER + CLOCK PLL</h2>
+    <div id="rxTc" class="tc">--:--.---</div>
+    <div class="controls"><button id="mic" class="primary">ENABLE MICROPHONE</button><button id="clear">CLEAR LOCK</button></div>
+    <div class="row"><span>Carrier profile</span><select id="rxProfile"><option value="mid">MID 2.4–5.9 kHz</option><option value="high">HIGH 7–11 kHz</option></select><span></span></div>
+    <div class="row"><span>Acoustic offset</span><input id="offset" type="range" min="-250" max="500" value="0" step="1"><span id="offsetText">0 ms</span></div>
+    <div class="row"><span>Signal</span><div class="meter"><i id="sig"></i></div><span id="sigText">—</span></div>
+    <div class="row"><span>Tone dominance</span><div class="meter"><i id="dom"></i></div><span id="domText">—</span></div>
+  </div>
+
+  <div id="learn" class="hidden">
+    <h2>WHAT V2 IS TEACHING</h2>
+    <div class="kv">
+      <div>Audio thread</div><div>Decoding runs in AudioWorklet instead of requestAnimationFrame, so DSP timing is isolated from UI frame rate.</div>
+      <div>Clock model</div><div>SHOW_TIME = RATE × LOCAL_MONOTONIC_TIME + OFFSET.</div>
+      <div>Discipline</div><div>New packets are observations, not commands to hard-jump every frame. Small errors slew; large errors reacquire.</div>
+      <div>Holdover</div><div>When acoustic packets disappear, the local monotonic clock continues the show until packets return.</div>
+      <div>Transport</div><div>This demo uses 4-FSK + CRC. A production system can swap in watermark, LTC, fingerprint, ESP-NOW, or Link without replacing the cue engine.</div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>CLOCK DIAGNOSTICS</h2>
+  <div class="diag">
+    <div class="card"><div class="k">LOCK</div><div class="v" id="lock">SEARCH</div></div>
+    <div class="card"><div class="k">ERROR</div><div class="v" id="err">— ms</div></div>
+    <div class="card"><div class="k">DRIFT</div><div class="v" id="drift">— ppm</div></div>
+    <div class="card"><div class="k">AGE</div><div class="v" id="age">— ms</div></div>
+    <div class="card"><div class="k">VALID</div><div class="v" id="valid">0</div></div>
+    <div class="card"><div class="k">CRC FAIL</div><div class="v" id="bad">0</div></div>
+    <div class="card"><div class="k">AUDIO OUT</div><div class="v" id="outlat">— ms</div></div>
+    <div class="card"><div class="k">SAMPLE RATE</div><div class="v" id="sr">—</div></div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>TEST PROCEDURE</h2>
+  <div class="kv">
+    <div>T0</div><div>Two browsers, 30 cm, MID carrier, quiet room.</div>
+    <div>T1</div><div>Move receiver to 1 m / 3 m / 5 m. Watch ERROR and LOCK.</div>
+    <div>T2</div><div>Play music from the same speaker. Compare MID vs HIGH.</div>
+    <div>T3</div><div>Mute sender for 5–20 s. Observe HOLDOVER, then relock.</div>
+    <div>T4</div><div>Use acoustic offset to compensate stable input/propagation delay.</div>
+  </div>
+</section>
+
+<section class="panel wide">
+  <h2>LOCAL CUE ENGINE / A B C GROUPS</h2>
+  <div class="lights" id="lights"></div>
+  <div class="note" id="cueText">SECTION 00 · WAIT</div>
+</section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const PROFILES={mid:[[2400,2900,3400,3900],[4400,4900,5400,5900]],high:[[7000,7600,8200,8800],[9300,9900,10500,11100]]};
+const PRE=[0,3,1,2,3,0], SYM=.05, FRAME_SYMS=18, FRAME_DUR=SYM*FRAME_SYMS;
+let tab='tx', ac=null, master=null, running=false, paused=false, showOrigin=0, pausedAt=0, txTimer=null;
+let rxCtx=null, stream=null, node=null, valid=0,bad=0,lastPacket=0,lockState='SEARCH';
+let observations=[], rate=1, intercept=0, lastError=0, locked=false;
+
+for(let i=0;i<18;i++){const d=document.createElement('div');d.className='lamp';$('#lights').appendChild(d)}
+function tabTo(x){tab=x;['tx','rx','learn'].forEach(k=>$('#'+k).classList.toggle('hidden',k!==x));$('#txTab').classList.toggle('on',x==='tx');$('#rxTab').classList.toggle('on',x==='rx');$('#learnTab').classList.toggle('on',x==='learn')}
+$('#txTab').onclick=()=>tabTo('tx');$('#rxTab').onclick=()=>tabTo('rx');$('#learnTab').onclick=()=>tabTo('learn');
+
+function nowShow(){if(!running)return 0;if(paused)return pausedAt;return (performance.now()-showOrigin)/1000}
+function fmt(s){s=Math.max(0,s);let m=Math.floor(s/60),q=Math.floor(s%60),ms=Math.floor((s%1)*1000);return String(m).padStart(2,'0')+':'+String(q).padStart(2,'0')+'.'+String(ms).padStart(3,'0')}
+function crc8(a){let c=0;for(const b of a){c^=b;for(let i=0;i<8;i++)c=(c&128)?((c<<1)^7)&255:(c<<1)&255}return c}
+function byteSyms(b){return[(b>>6)&3,(b>>4)&3,(b>>2)&3,b&3]}
+function packetFor(showAtEnd){
+  const tick=Math.max(0,Math.min(0x7fff,Math.round(showAtEnd*4)));
+  const word=(paused?0x8000:0)|tick,hi=(word>>8)&255,lo=word&255,c=crc8([hi,lo]);
+  return PRE.concat(byteSyms(hi),byteSyms(lo),byteSyms(c));
+}
+function ensureTx(){
+  if(!ac){ac=new AudioContext({latencyHint:'interactive'});master=ac.createGain();master.gain.value=+$('#gain').value;master.connect(ac.destination);$('#sr').textContent=ac.sampleRate+' Hz'}
+  ac.resume();
+  $('#outlat').textContent=((ac.outputLatency||0)*1000).toFixed(1)+' ms';
+}
+function sendPacket(){
+  ensureTx();const t0=ac.currentTime+.06, showEnd=nowShow()+.06+FRAME_DUR, syms=packetFor(showEnd),p=PROFILES[$('#txProfile').value];
+  syms.forEach((v,i)=>{const t=t0+i*SYM,o=ac.createOscillator(),g=ac.createGain();o.frequency.setValueAtTime(p[i&1][v],t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(1,t+.003);g.gain.setValueAtTime(1,t+SYM-.004);g.gain.linearRampToValueAtTime(0,t+SYM);o.connect(g).connect(master);o.start(t);o.stop(t+SYM+.005)});
+}
+$('#start').onclick=()=>{ensureTx();if(!running){running=true;paused=false;showOrigin=performance.now()}else if(paused){showOrigin=performance.now()-pausedAt*1000;paused=false}clearInterval(txTimer);sendPacket();txTimer=setInterval(sendPacket,1100);setStatus('TX RUN','ok')};
+$('#pause').onclick=()=>{if(!running)return;if(!paused){pausedAt=nowShow();paused=true}else{showOrigin=performance.now()-pausedAt*1000;paused=false}sendPacket()};
+$('#reset').onclick=()=>{running=true;paused=false;showOrigin=performance.now();pausedAt=0;sendPacket()};
+$('#burst').onclick=sendPacket;
+$('#gain').oninput=e=>{master&&(master.gain.value=+e.target.value);$('#gainText').textContent=(+e.target.value).toFixed(2)};
+$('#bpm').oninput=e=>$('#bpmText').textContent=e.target.value;
+$('#offset').oninput=e=>$('#offsetText').textContent=e.target.value+' ms';
+
+function setStatus(t,c=''){ $('#status').textContent=t;$('#dot').className='dot '+c }
+function parsePayload(a,localArrival){
+  const sb=o=>((a[o]&3)<<6)|((a[o+1]&3)<<4)|((a[o+2]&3)<<2)|(a[o+3]&3);
+  const hi=sb(0),lo=sb(4),c=sb(8);if(crc8([hi,lo])!==c){bad++;$('#bad').textContent=bad;return}
+  const word=(hi<<8)|lo,show=(word&0x7fff)/4,rxPaused=!!(word&0x8000),corr=(+$('#offset').value)/1000;
+  discipline(localArrival,show+corr);
+  valid++;lastPacket=performance.now();$('#valid').textContent=valid;paused=rxPaused;setStatus('RX LOCK','ok')
+}
+function discipline(local,show){
+  observations.push({local,show});if(observations.length>20)observations.shift();
+  if(observations.length===1){rate=1;intercept=show-local;locked=true;lockState='LOCKING';lastError=0;return}
+  // Robust-ish affine fit over recent observations.
+  let n=observations.length,mx=0,my=0;for(const o of observations){mx+=o.local;my+=o.show}mx/=n;my/=n;
+  let num=0,den=0;for(const o of observations){num+=(o.local-mx)*(o.show-my);den+=(o.local-mx)*(o.local-mx)}
+  let fitRate=den>1e-6?num/den:1;fitRate=Math.max(.9995,Math.min(1.0005,fitRate));
+  const fitInt=my-fitRate*mx,pred=rate*local+intercept,err=show-pred;lastError=err;
+  if(Math.abs(err)>.35 || !locked){rate=fitRate;intercept=fitInt}
+  else{rate=rate*.92+fitRate*.08;intercept=intercept*.92+fitInt*.08}
+  locked=true;lockState=n>=5?'LOCKED':'LOCKING'
+}
+function disciplinedShow(){
+  if(!locked)return 0;
+  return rate*(performance.now()/1000)+intercept;
+}
+
+async function enableMic(){
+  stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
+  rxCtx=new AudioContext({latencyHint:'interactive'});$('#sr').textContent=rxCtx.sampleRate+' Hz';
+  const workletCode=`
+  class FSK extends AudioWorkletProcessor{
+    constructor(){super();this.buf=[];this.cfg={p:[[2400,2900,3400,3900],[4400,4900,5400,5900]],sym:.05};this.phase=0;this.last=-1;this.hist=[];this.collect=false;this.pay=[];this.P=[0,3,1,2,3,0];this.port.onmessage=e=>{if(e.data&&e.data.p)this.cfg.p=e.data.p}}
+    power(x,f){let w=2*Math.PI*f/sampleRate,c=2*Math.cos(w),s0=0,s1=0,s2=0;for(let i=0;i<x.length;i++){s0=x[i]+c*s1-s2;s2=s1;s1=s0}return s1*s1+s2*s2-c*s1*s2}
+    process(ins){const a=ins[0]&&ins[0][0];if(!a)return true;for(let i=0;i<a.length;i++)this.buf.push(a[i]);
+      const N=Math.round(sampleRate*this.cfg.sym);
+      while(this.buf.length>=N){const x=this.buf.splice(0,N);const bank=this.phase&1,ps=this.cfg.p[bank].map(f=>this.power(x,f));let bi=0;for(let i=1;i<4;i++)if(ps[i]>ps[bi])bi=i;
+        let sorted=[...ps].sort((a,b)=>b-a),dom=10*Math.log10((sorted[0]+1e-12)/(sorted[1]+1e-12)),sig=10*Math.log10(sorted[0]+1e-12);
+        this.port.postMessage({kind:'meter',sig,dom});
+        if(dom>3){this.accept(bi)}this.phase++;
+      }return true}
+    accept(v){if(this.collect){this.pay.push(v);if(this.pay.length===12){this.port.postMessage({kind:'packet',a:this.pay,t:currentTime});this.pay=[];this.collect=false}return}
+      this.hist.push(v);if(this.hist.length>6)this.hist.shift();if(this.hist.length===6&&this.P.every((x,i)=>x===this.hist[i])){this.collect=true;this.pay=[];this.hist=[]}}
+  }registerProcessor('fsk',FSK);`;
+  const url=URL.createObjectURL(new Blob([workletCode],{type:'application/javascript'}));await rxCtx.audioWorklet.addModule(url);URL.revokeObjectURL(url);
+  node=new AudioWorkletNode(rxCtx,'fsk');const src=rxCtx.createMediaStreamSource(stream);src.connect(node);node.connect(rxCtx.destination);
+  const zero=rxCtx.createGain();zero.gain.value=0;node.disconnect();node.connect(zero).connect(rxCtx.destination);
+  updateProfile();
+  node.port.onmessage=e=>{const d=e.data;if(d.kind==='meter'){const sn=Math.max(0,Math.min(100,(d.sig+20)*2));const dm=Math.max(0,Math.min(100,d.dom*7));$('#sig').style.width=sn+'%';$('#dom').style.width=dm+'%';$('#sigText').textContent=d.sig.toFixed(1)+' dB';$('#domText').textContent=d.dom.toFixed(1)+' dB'}else if(d.kind==='packet'){parsePayload(d.a,performance.now()/1000)}};
+  $('#mic').textContent='MIC ACTIVE';setStatus('RX LISTEN','warn')
+}
+function updateProfile(){if(node)node.port.postMessage({p:PROFILES[$('#rxProfile').value]})}
+$('#mic').onclick=()=>enableMic().catch(e=>{setStatus('MIC ERROR','bad');console.error(e)});
+$('#rxProfile').onchange=updateProfile;
+$('#clear').onclick=()=>{observations=[];locked=false;rate=1;intercept=0;lastPacket=0;lockState='SEARCH';setStatus('RX LISTEN','warn')};
+
+function cue(t){
+  const x=t%60,bpm=+$('#bpm').value,beat=t*bpm/60,phase=beat-Math.floor(beat),q=Math.floor(beat)%4,section=Math.floor(x/12);
+  [...$('#lights').children].forEach((el,i)=>{const g=Math.floor(i/6),j=i%6;let v=0,h=0;
+    if(section===0){v=(q===0?1:.18)*(1-phase);h=[0,190,45][g]}
+    if(section===1){const k=Math.floor((x-12)*7)%18;v=Math.max(.02,1-Math.abs(k-i)/3);h=190+i*5}
+    if(section===2){v=((Math.floor(beat)+g)%3===0)&&phase<.22?1:.025;h=[0,215,50][g]}
+    if(section===3){v=Math.sin(x*(7+g*2)*Math.PI*2+j)>.4?1:.02;h=[0,190,280][g]}
+    if(section===4){v=(q===0?1:.25+.75*(1-phase));h=(i*18+x*20)%360}
+    const l=8+55*v;el.style.background='hsl('+h+' 85% '+l+'%)';el.style.boxShadow=v>.3?'0 0 '+(25*v)+'px hsla('+h+',85%,60%,'+(.6*v)+')':'none';
+  });$('#cueText').textContent='SECTION 0'+(section+1)+' · '+['ACQUIRE','CHASE','GROUP SPLIT','STROBE FIELD','FINALE'][section]
+}
+function loop(){
+  const txs=nowShow(),rxs=disciplinedShow();$('#txTc').textContent=fmt(txs);$('#rxTc').textContent=locked?fmt(rxs):'--:--.---';
+  if(locked){const age=performance.now()-lastPacket;$('#age').textContent=Math.round(age)+' ms';$('#err').textContent=(lastError*1000).toFixed(1)+' ms';$('#drift').textContent=((rate-1)*1e6).toFixed(1)+' ppm';if(age>3000)lockState='HOLDOVER';if(age>15000)lockState='STALE'}
+  $('#lock').textContent=lockState; cue(tab==='rx'&&locked?rxs:txs);
+  if(ac&&ac.getOutputTimestamp){const ts=ac.getOutputTimestamp();if(ts&&ac.outputLatency!==undefined)$('#outlat').textContent=(ac.outputLatency*1000).toFixed(1)+' ms'}
+  requestAnimationFrame(loop)
+}
+loop();
+</script>
+</body>
+</html>
