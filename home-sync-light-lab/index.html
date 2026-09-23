@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ACOUSTIC SYNC LIGHT LAB</title>
+<style>
+:root{--bg:#070707;--fg:#f2f2ed;--muted:#777;--line:#282828;--red:#ff3b30;--cyan:#42d7ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+header{position:sticky;top:0;z-index:5;background:#070707e8;backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:14px 18px;display:flex;justify-content:space-between;gap:20px}
+.brand{letter-spacing:.16em}.tag{color:var(--muted);font-size:11px}.wrap{max-width:1180px;margin:auto;padding:18px;display:grid;grid-template-columns:1.05fr .95fr;gap:16px}
+.panel{border:1px solid var(--line);background:#0b0b0b;padding:16px}.wide{grid-column:1/-1}
+h2{margin:0 0 12px;font-size:12px;font-weight:500;letter-spacing:.16em;color:#aaa}.tc{font-size:clamp(36px,7vw,90px);letter-spacing:-.06em;line-height:1;font-variant-numeric:tabular-nums}
+.subtc{display:flex;gap:18px;margin-top:10px;color:var(--muted);flex-wrap:wrap}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}button,select,input{font:inherit}button,select{background:#111;color:#eee;border:1px solid #353535;padding:9px 11px}button:hover{border-color:#777}button.primary{background:#eee;color:#080808;border-color:#eee}.row{display:grid;grid-template-columns:110px 1fr 70px;gap:10px;align-items:center;margin:10px 0}.row label{color:#aaa}.meter{height:8px;border:1px solid #333;position:relative;background:#050505}.meter i{display:block;height:100%;width:0;background:#ddd}.status{display:flex;gap:8px;align-items:center}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{background:#58ff87;box-shadow:0 0 12px #58ff87}.dot.warn{background:#ffb347;box-shadow:0 0 12px #ffb347}
+.tabs{display:flex;gap:6px;margin-bottom:14px}.tabs button.active{background:#eee;color:#111}.mode{display:none}.mode.active{display:block}
+.rig{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.group{border:1px solid #222;padding:10px}.gtitle{display:flex;justify-content:space-between;color:#888;margin-bottom:10px}.lamps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.lamp{aspect-ratio:1;border-radius:50%;border:1px solid #252525;background:#0a0a0a;transition:background .025s,box-shadow .025s,transform .025s}.lamp.hot{transform:scale(1.04)}
+.scope{height:84px;border:1px solid #202020;background:repeating-linear-gradient(90deg,#0a0a0a 0,#0a0a0a 39px,#111 40px),repeating-linear-gradient(0deg,transparent 0,transparent 20px,#111 21px);position:relative;overflow:hidden}.pulse{position:absolute;top:0;bottom:0;width:2px;background:#eee;left:0}
+.small{font-size:11px;color:#777}.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px}.kv div:nth-child(odd){color:#777}.badge{border:1px solid #333;padding:2px 6px;color:#aaa}
+@media(max-width:760px){.wrap{grid-template-columns:1fr}.wide{grid-column:auto}.rig{grid-template-columns:1fr}.row{grid-template-columns:90px 1fr 56px}}
+</style>
+</head>
+<body>
+<header><div><div class="brand">ACOUSTIC SYNC LIGHT LAB</div><div class="tag">two-computer / speaker → microphone / timecode + local light program</div></div><div class="status"><span id="globalDot" class="dot"></span><span id="globalStatus">IDLE</span></div></header>
+
+<main class="wrap">
+<section class="panel wide">
+  <div class="tabs">
+    <button id="tabSend" class="active">TRANSMITTER</button>
+    <button id="tabRecv">RECEIVER</button>
+    <button id="tabInfo">SYSTEM</button>
+  </div>
+
+  <div id="sendMode" class="mode active">
+    <h2>TRANSMITTER / SHOW CLOCK</h2>
+    <div id="sendTC" class="tc">00:00.000</div>
+    <div class="subtc"><span>100 BPM</span><span id="sendBeat">BEAT 1 / 4</span><span id="sendPkt">PACKET 0000</span><span id="sendState">STOPPED</span></div>
+    <div class="controls">
+      <button id="startBtn" class="primary">START + AUDIO</button>
+      <button id="pauseBtn">PAUSE</button>
+      <button id="resetBtn">RESET</button>
+      <button id="pingBtn">SEND ONE FRAME</button>
+    </div>
+    <div class="row"><label>Profile</label><select id="profileSend"><option value="robust">ROBUST 2.2–5.8 kHz</option><option value="high">HIGH BAND 6.5–10 kHz</option></select><span class="badge">4-FSK</span></div>
+    <div class="row"><label>Signal gain</label><input id="gain" type="range" min="0.01" max="0.30" step="0.01" value="0.08"><span id="gainVal">0.08</span></div>
+    <div class="row"><label>Show length</label><select id="duration"><option value="60">60 s demo</option><option value="3600">60 min show</option></select><span></span></div>
+    <p class="small">The signal carries only timeline state: 15-bit time tick (0.25 s) + RUN/PAUSE + CRC. The light choreography is stored locally, so one tiny acoustic packet can drive many receivers.</p>
+  </div>
+
+  <div id="recvMode" class="mode">
+    <h2>RECEIVER / MICROPHONE DECODER</h2>
+    <div id="recvTC" class="tc">--:--.---</div>
+    <div class="subtc"><span id="recvLock">NO LOCK</span><span id="recvAge">AGE —</span><span id="recvPkt">VALID 0000</span><span id="recvState">WAITING</span></div>
+    <div class="controls">
+      <button id="micBtn" class="primary">ENABLE MICROPHONE</button>
+      <button id="unlockBtn">CLEAR LOCK</button>
+    </div>
+    <div class="row"><label>Profile</label><select id="profileRecv"><option value="robust">ROBUST 2.2–5.8 kHz</option><option value="high">HIGH BAND 6.5–10 kHz</option></select><span></span></div>
+    <div class="row"><label>Signal</label><div class="meter"><i id="sigBar"></i></div><span id="sigDb">— dB</span></div>
+    <div class="row"><label>Dominance</label><div class="meter"><i id="domBar"></i></div><span id="domDb">— dB</span></div>
+    <p class="small">Use two computers. Open TRANSMITTER on one, RECEIVER on the other. Put the receiver near the sender's speaker and allow microphone access. Headphones will prevent acoustic transfer.</p>
+  </div>
+
+  <div id="infoMode" class="mode">
+    <h2>PROTOCOL / FIELD MODEL</h2>
+    <div class="kv">
+      <div>Carrier</div><div>alternating-bank 4-FSK, 2 bits/symbol</div>
+      <div>Frame</div><div>6-symbol preamble + 16-bit time/state + CRC-8</div>
+      <div>Symbol</div><div>40 ms; one frame ≈ 720 ms</div>
+      <div>Resync</div><div>periodic absolute timecode; receiver free-runs between packets</div>
+      <div>Groups</div><div>A/B/C are local receiver identities; audio carries global time, not per-pixel data</div>
+      <div>Purpose</div><div>prototype of acoustic show synchronization, not an implementation of Evixar Another Track®</div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>VIRTUAL LIGHT FIELD / LOCAL CUE ENGINE</h2>
+  <div class="rig">
+    <div class="group"><div class="gtitle"><span>GROUP A</span><span>A01–06</span></div><div id="ga" class="lamps"></div></div>
+    <div class="group"><div class="gtitle"><span>GROUP B</span><span>B01–06</span></div><div id="gb" class="lamps"></div></div>
+    <div class="group"><div class="gtitle"><span>GROUP C</span><span>C01–06</span></div><div id="gc" class="lamps"></div></div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>TIMING / VISUAL SYNC MONITOR</h2>
+  <div class="scope"><div id="pulse" class="pulse"></div></div>
+  <div class="subtc"><span id="sectionName">SECTION 00 / IDLE</span><span id="beatText">Q 1</span></div>
+  <p class="small">The white cursor is show phase. At 100 BPM a quarter note is 600 ms. Use this monitor to compare two screens visually after receiver lock.</p>
+</section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const profiles={
+  robust:[[2200,2700,3200,3700],[4300,4800,5300,5800]],
+  high:[[6500,7000,7500,8000],[8500,9000,9500,10000]]
+};
+const PRE=[0,3,1,2,3,0], SYMBOL=0.040, FRAME_MS=900;
+
+let mode='send', audio=null, master=null, running=false, paused=false, showStart=0, pauseAt=0, packetCount=0, txTimer=null;
+let rxAudio=null, analyser=null, micStream=null, rxLocked=false, rxPaused=false, rxAnchorShow=0, rxAnchorLocal=0, rxLastPacket=0, validPackets=0;
+let accepted=[], payload=[], collecting=false, lastBank=-1, cand=-1, candSince=0, lastAcceptedAt=0;
+
+['ga','gb','gc'].forEach(id=>{for(let i=0;i<6;i++){const d=document.createElement('div');d.className='lamp';d.dataset.i=i;$('#'+id).appendChild(d)}});
+
+function setTab(which){
+  mode=which;
+  ['send','recv','info'].forEach(x=>$('#'+x+'Mode').classList.toggle('active',x===which));
+  $('#tabSend').classList.toggle('active',which==='send');$('#tabRecv').classList.toggle('active',which==='recv');$('#tabInfo').classList.toggle('active',which==='info');
+}
+$('#tabSend').onclick=()=>setTab('send');$('#tabRecv').onclick=()=>setTab('recv');$('#tabInfo').onclick=()=>setTab('info');
+
+function crc8(bytes){let c=0;for(const b of bytes){c^=b;for(let i=0;i<8;i++)c=(c&0x80)?((c<<1)^0x07)&255:(c<<1)&255}return c}
+function symbolsForByte(b){return[(b>>6)&3,(b>>4)&3,(b>>2)&3,b&3]}
+function frameSymbols(sec,isPaused){
+  const tick=Math.min(0x7fff,Math.max(0,Math.floor(sec*4)));
+  const word=(isPaused?0x8000:0)|tick, hi=(word>>8)&255, lo=word&255, crc=crc8([hi,lo]);
+  return PRE.concat(symbolsForByte(hi),symbolsForByte(lo),symbolsForByte(crc));
+}
+function ensureAudio(){
+  if(!audio){audio=new (window.AudioContext||window.webkitAudioContext)();master=audio.createGain();master.gain.value=+$('#gain').value;master.connect(audio.destination)}
+  if(audio.state==='suspended')audio.resume();
+}
+function sendFrame(){
+  ensureAudio(); const sec=currentSenderTime(), syms=frameSymbols(sec,paused), p=profiles[$('#profileSend').value]; const t0=audio.currentTime+.015;
+  syms.forEach((v,i)=>{
+    const o=audio.createOscillator(),g=audio.createGain(),t=t0+i*SYMBOL,f=p[i&1][v];
+    o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(1,t+.003);g.gain.setValueAtTime(1,t+SYMBOL-.004);g.gain.linearRampToValueAtTime(0,t+SYMBOL);
+    o.connect(g).connect(master);o.start(t);o.stop(t+SYMBOL+.005);
+  });
+  packetCount++;$('#sendPkt').textContent='PACKET '+String(packetCount).padStart(4,'0');
+}
+function currentSenderTime(){
+  const len=+$('#duration').value;
+  if(!running)return 0;
+  const s=paused?pauseAt:(performance.now()-showStart)/1000;
+  return len===60?s%60:Math.min(s,len);
+}
+$('#gain').oninput=e=>{const v=+e.target.value;$('#gainVal').textContent=v.toFixed(2);if(master)master.gain.value=v};
+$('#startBtn').onclick=()=>{
+  ensureAudio();if(!running){running=true;paused=false;showStart=performance.now();pauseAt=0}else if(paused){showStart=performance.now()-pauseAt*1000;paused=false}
+  clearInterval(txTimer);sendFrame();txTimer=setInterval(sendFrame,FRAME_MS);setGlobal('TX RUN',true);
+};
+$('#pauseBtn').onclick=()=>{if(!running)return;if(!paused){pauseAt=currentSenderTime();paused=true}else{showStart=performance.now()-pauseAt*1000;paused=false}sendFrame()};
+$('#resetBtn').onclick=()=>{showStart=performance.now();pauseAt=0;running=true;paused=false;sendFrame()};
+$('#pingBtn').onclick=()=>sendFrame();
+
+async function enableMic(){
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
+    rxAudio=new (window.AudioContext||window.webkitAudioContext)(); const src=rxAudio.createMediaStreamSource(micStream); analyser=rxAudio.createAnalyser();analyser.fftSize=4096;analyser.smoothingTimeConstant=0;src.connect(analyser);$('#micBtn').textContent='MIC ACTIVE';setGlobal('RX LISTEN',true);decodeLoop();
+  }catch(e){$('#recvLock').textContent='MIC ERROR';setGlobal('MIC ERROR',false,true)}
+}
+$('#micBtn').onclick=enableMic;$('#unlockBtn').onclick=()=>{rxLocked=false;collecting=false;payload=[];accepted=[];$('#recvLock').textContent='NO LOCK'};
+
+function decodeLoop(){
+  if(!analyser)return;
+  const bins=new Float32Array(analyser.frequencyBinCount);analyser.getFloatFrequencyData(bins);
+  const fs=rxAudio.sampleRate, p=profiles[$('#profileRecv').value], all=p[0].concat(p[1]), vals=[];
+  all.forEach((f,i)=>{const k=Math.round(f*analyser.fftSize/fs);vals.push({i,db:bins[Math.max(0,Math.min(bins.length-1,k))]})});
+  vals.sort((a,b)=>b.db-a.db);const best=vals[0], second=vals[1], dom=best.db-second.db;
+  $('#sigDb').textContent=isFinite(best.db)?best.db.toFixed(1)+' dB':'— dB';$('#domDb').textContent=isFinite(dom)?dom.toFixed(1)+' dB':'— dB';
+  $('#sigBar').style.width=Math.max(0,Math.min(100,(best.db+90)*1.5))+'%';$('#domBar').style.width=Math.max(0,Math.min(100,dom*7))+'%';
+  const now=performance.now(); let detected=-1;
+  if(best.db>-64 && dom>3.5)detected=best.i;
+  if(detected!==cand){cand=detected;candSince=now}
+  if(cand>=0 && now-candSince>12){
+    const bank=cand>=4?1:0,val=cand&3;
+    if(bank!==lastBank && now-lastAcceptedAt>18){acceptSymbol(val);lastBank=bank;lastAcceptedAt=now}
+  }
+  requestAnimationFrame(decodeLoop);
+}
+function acceptSymbol(v){
+  if(collecting){payload.push(v);if(payload.length===12){parsePayload(payload);payload=[];collecting=false}return}
+  accepted.push(v);if(accepted.length>PRE.length)accepted.shift();
+  if(accepted.length===PRE.length && PRE.every((x,i)=>x===accepted[i])){collecting=true;payload=[];accepted=[]}
+}
+function symbolsToByte(a,o){return((a[o]&3)<<6)|((a[o+1]&3)<<4)|((a[o+2]&3)<<2)|(a[o+3]&3)}
+function parsePayload(a){
+  const hi=symbolsToByte(a,0),lo=symbolsToByte(a,4),c=symbolsToByte(a,8);if(crc8([hi,lo])!==c)return;
+  const word=(hi<<8)|lo;rxPaused=!!(word&0x8000);rxAnchorShow=(word&0x7fff)/4;rxAnchorLocal=performance.now();rxLastPacket=rxAnchorLocal;rxLocked=true;validPackets++;
+  $('#recvPkt').textContent='VALID '+String(validPackets).padStart(4,'0');$('#recvLock').textContent='LOCKED';setGlobal('RX LOCK',true);
+}
+function currentReceiverTime(){if(!rxLocked)return 0;return rxPaused?rxAnchorShow:rxAnchorShow+(performance.now()-rxAnchorLocal)/1000}
+function fmt(sec){sec=Math.max(0,sec);const m=Math.floor(sec/60),s=Math.floor(sec%60),ms=Math.floor((sec%1)*1000);return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+String(ms).padStart(3,'0')}
+function setGlobal(t,on,warn=false){$('#globalStatus').textContent=t;$('#globalDot').className='dot '+(on?'on':warn?'warn':'')}
+
+function lampProgram(t,g,i){
+  const x=t%60, beat=(t*100/60), q=Math.floor(beat), frac=beat-q, down=q%4===0;
+  let v=0,h=0,s=0,l=0;
+  if(x<12){v=Math.pow(Math.max(0,1-frac),2)*(0.55+0.45*Math.sin((i+g*2)*.8+x*.6)**2);h=g===0?4:g===1?190:45;s=85;l=55}
+  else if(x<24){const step=Math.floor((x-12)*5)%18,idx=g*6+i;v=Math.max(0,1-Math.abs(step-idx)/3);h=190+idx*4;s=85;l=55}
+  else if(x<36){const gate=(Math.floor((x-24)*8)%8)<2;v=(gate&&((q+g)%3===0))?1:.03;h=g===0?0:g===1?210:48;s=95;l=60}
+  else if(x<48){const hz=[5,7,9][g];v=(Math.sin(x*Math.PI*2*hz+i*.7)>0.45)?1:.02;h=[0,190,275][g];s=80;l=60}
+  else {const rise=(x-48)/12;v=Math.min(1,.1+rise*.9)*(down?1:.35+(.65*(1-frac)));h=(i*22+g*80+x*18)%360;s=70;l=65}
+  return{v,h,s,l};
+}
+function drawRig(t){
+  ['ga','gb','gc'].forEach((id,g)=>[...$('#'+id).children].forEach((el,i)=>{
+    const p=lampProgram(t,g,i),alpha=Math.max(.03,p.v),light=8+p.l*p.v;
+    el.style.background='hsl('+p.h+' '+p.s+'% '+light+'%)';el.style.boxShadow=p.v>.12?'0 0 '+(6+30*p.v)+'px hsla('+p.h+','+p.s+'%,'+p.l+'%,'+(.15+.55*p.v)+')':'none';el.classList.toggle('hot',p.v>.8);
+  }));
+}
+function section(t){const x=t%60;return x<12?'01 / ACQUIRE':x<24?'02 / CHASE':x<36?'03 / GROUP SPLIT':x<48?'04 / STROBE FIELD':'05 / FINALE'}
+function uiLoop(){
+  const st=currentSenderTime(),rt=currentReceiverTime(),use=(mode==='recv'&&rxLocked)?rt:st;
+  $('#sendTC').textContent=fmt(st);$('#recvTC').textContent=rxLocked?fmt(rt):'--:--.---';
+  const beat=Math.floor(use*100/60)%4+1;$('#sendBeat').textContent='BEAT '+beat+' / 4';$('#beatText').textContent='Q '+beat;$('#sendState').textContent=!running?'STOPPED':paused?'PAUSED':'RUNNING';$('#recvState').textContent=!rxLocked?'WAITING':rxPaused?'PAUSED':'FREE RUN';
+  if(rxLocked){const age=performance.now()-rxLastPacket;$('#recvAge').textContent='AGE '+Math.round(age)+' ms';if(age>3000)$('#recvLock').textContent='HOLDOVER'}
+  $('#sectionName').textContent='SECTION '+section(use);$('#pulse').style.left=((use%2.4)/2.4*100)+'%';drawRig(use);
+  requestAnimationFrame(uiLoop);
+}
+uiLoop();
+</script>
+</body>
+</html>
