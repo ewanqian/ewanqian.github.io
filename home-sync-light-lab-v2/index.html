@@ -3,211 +3,312 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Acoustic Sync Light Lab V2</title>
+<title>Open Show Sync Lab · Masked Watermark</title>
 <style>
-:root{--bg:#060606;--fg:#eee;--muted:#777;--line:#292929;--ok:#6dff8f;--warn:#ffbf5b;--bad:#ff5959}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
-header{padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#060606e8;backdrop-filter:blur(12px);z-index:2;display:flex;justify-content:space-between}
-main{max-width:1240px;margin:auto;padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.panel{border:1px solid var(--line);padding:14px;background:#0a0a0a}.wide{grid-column:1/-1}
-h1,h2{font-weight:500;margin:0}h1{font-size:13px;letter-spacing:.18em}h2{font-size:11px;color:#aaa;letter-spacing:.14em;margin-bottom:10px}
-.tc{font-size:clamp(36px,6vw,78px);line-height:1;letter-spacing:-.055em;font-variant-numeric:tabular-nums}
-.controls{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}button,select,input{font:inherit}button,select{background:#111;color:#eee;border:1px solid #3a3a3a;padding:8px 10px}button.primary{background:#eee;color:#090909}.kv{display:grid;grid-template-columns:150px 1fr;gap:5px 12px}.kv div:nth-child(odd){color:#777}
-.row{display:grid;grid-template-columns:120px 1fr 80px;gap:10px;align-items:center;margin:8px 0}.meter{height:8px;border:1px solid #303030;background:#050505}.meter i{display:block;height:100%;width:0;background:#eee}
-.status{display:flex;align-items:center;gap:7px}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.ok{background:var(--ok);box-shadow:0 0 10px var(--ok)}.dot.warn{background:var(--warn);box-shadow:0 0 10px var(--warn)}.dot.bad{background:var(--bad);box-shadow:0 0 10px var(--bad)}
-.diag{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.card{border:1px solid #222;padding:9px}.v{font-size:20px;margin-top:3px}.k{color:#777}
-.lights{display:grid;grid-template-columns:repeat(18,1fr);gap:5px}.lamp{aspect-ratio:1;border-radius:50%;background:#111;border:1px solid #222;transition:background .02s,box-shadow .02s}
-.note{color:#777;font-size:11px}.tabs{display:flex;gap:6px}.tabs button.on{background:#eee;color:#111}
-.hidden{display:none}.bar{height:1px;background:#222;margin:12px 0}
-@media(max-width:780px){main{grid-template-columns:1fr}.wide{grid-column:auto}.diag{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:90px 1fr 62px}.lights{grid-template-columns:repeat(9,1fr)}}
+:root{--bg:#050505;--fg:#efefea;--muted:#777;--line:#282828;--ok:#72ff8f;--warn:#ffc35b;--bad:#ff5d5d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+header{position:sticky;top:0;z-index:5;background:#050505e8;backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:14px 18px;display:flex;justify-content:space-between;gap:18px}
+h1,h2{margin:0;font-weight:500}h1{font-size:13px;letter-spacing:.17em}h2{font-size:11px;letter-spacing:.14em;color:#aaa;margin-bottom:10px}
+main{max-width:1240px;margin:auto;padding:18px;display:grid;grid-template-columns:1.05fr .95fr;gap:14px}
+.panel{border:1px solid var(--line);background:#0a0a0a;padding:14px}.wide{grid-column:1/-1}
+.note{font-size:11px;color:#777}.status{display:flex;align-items:center;gap:8px}.dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.ok{background:var(--ok);box-shadow:0 0 10px var(--ok)}.dot.warn{background:var(--warn);box-shadow:0 0 10px var(--warn)}.dot.bad{background:var(--bad);box-shadow:0 0 10px var(--bad)}
+.tabs,.controls{display:flex;gap:7px;flex-wrap:wrap}.tabs{margin-bottom:12px}.controls{margin:12px 0}
+button,select,input{font:inherit}button,select{background:#111;color:#eee;border:1px solid #3a3a3a;padding:8px 10px}button.on,button.primary{background:#eee;color:#080808;border-color:#eee}button:disabled{opacity:.35}
+.tc{font-size:clamp(38px,6vw,82px);line-height:1;letter-spacing:-.055em;font-variant-numeric:tabular-nums}
+.row{display:grid;grid-template-columns:130px 1fr 82px;gap:10px;align-items:center;margin:9px 0}.row>span:first-child{color:#aaa}
+.meter{height:8px;border:1px solid #303030;background:#050505}.meter i{display:block;height:100%;width:0;background:#eee}
+.diag{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.card{border:1px solid #222;padding:9px}.k{color:#777}.v{font-size:19px;margin-top:3px;font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px}.kv div:nth-child(odd){color:#777}
+.hidden{display:none}.sep{height:1px;background:#222;margin:12px 0}
+.lights{display:grid;grid-template-columns:repeat(18,1fr);gap:5px}.lamp{aspect-ratio:1;border-radius:50%;background:#111;border:1px solid #222;transition:background .025s,box-shadow .025s}
+.badge{border:1px solid #333;padding:2px 6px;color:#aaa}.bigline{display:flex;gap:16px;flex-wrap:wrap;color:#888;margin-top:9px}
+.filebox{border:1px dashed #3b3b3b;padding:12px;margin:10px 0;background:#070707}
+.abx{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+@media(max-width:800px){main{grid-template-columns:1fr}.wide{grid-column:auto}.diag{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:100px 1fr 66px}.lights{grid-template-columns:repeat(9,1fr)}}
 </style>
 </head>
 <body>
-<header><div><h1>ACOUSTIC SYNC LIGHT LAB V2</h1><div class="note">AudioWorklet DSP · absolute show clock · clock discipline · holdover</div></div><div class="status"><span id="dot" class="dot"></span><span id="status">IDLE</span></div></header>
+<header>
+  <div><h1>OPEN SHOW SYNC LAB · MASKED WATERMARK</h1><div class="note">spectral patchwork prototype · no audible FSK tones · clock discipline + holdover</div></div>
+  <div class="status"><span id="dot" class="dot"></span><span id="status">IDLE</span></div>
+</header>
+
 <main>
 <section class="panel wide">
   <div class="tabs">
     <button id="txTab" class="on">TRANSMITTER</button>
     <button id="rxTab">RECEIVER</button>
-    <button id="learnTab">LEARN</button>
+    <button id="learnTab">SYSTEM</button>
   </div>
-  <div class="bar"></div>
 
   <div id="tx">
-    <h2>MASTER / ACOUSTIC TIMECODE TRANSMITTER</h2>
+    <h2>TRANSMITTER / AUDIO-BORNE SPECTRAL WATERMARK</h2>
     <div id="txTc" class="tc">00:00.000</div>
-    <div class="controls">
-      <button id="start" class="primary">START</button><button id="pause">PAUSE</button><button id="reset">RESET</button><button id="burst">SYNC BURST</button>
+    <div class="bigline"><span id="fileName">NO AUDIO LOADED</span><span id="durationText">—</span><span id="frameText">FRAME —</span></div>
+
+    <div class="filebox">
+      <input id="audioFile" type="file" accept="audio/*">
+      <div class="note">Load a music file. The watermark is created by tiny complementary EQ changes inside the music itself. No carrier tone is added.</div>
     </div>
-    <div class="row"><span>Carrier profile</span><select id="txProfile"><option value="mid">MID 2.4–5.9 kHz</option><option value="high">HIGH 7–11 kHz</option></select><span></span></div>
-    <div class="row"><span>Output gain</span><input id="gain" type="range" min="0.01" max="0.22" value="0.06" step="0.01"><span id="gainText">0.06</span></div>
-    <div class="row"><span>BPM</span><input id="bpm" type="range" min="60" max="180" value="100" step="1"><span id="bpmText">100</span></div>
-    <div class="note">Frame timestamp refers to the end of the acoustic packet, reducing systematic decode delay. The receiver estimates the remaining constant acoustic/input offset separately.</div>
+
+    <div class="controls">
+      <button id="play" class="primary" disabled>PLAY WATERMARKED</button>
+      <button id="pause" disabled>PAUSE</button>
+      <button id="restart" disabled>RESTART</button>
+    </div>
+
+    <div class="row"><span>Watermark strength</span><input id="strength" type="range" min="0.25" max="2.50" value="0.70" step="0.05"><span id="strengthText">0.70 dB</span></div>
+    <div class="row"><span>Perceptual mode</span><select id="listenMode"><option value="watermarked">WATERMARKED</option><option value="original">ORIGINAL</option><option value="difference">DIFFERENCE ×8</option></select><span></span></div>
+    <div class="row"><span>Show BPM</span><input id="bpm" type="range" min="60" max="180" value="100" step="1"><span id="bpmText">100</span></div>
+
+    <div class="abx">
+      <button data-mode="original">A · ORIGINAL</button>
+      <button data-mode="watermarked" class="on">B · WATERMARKED</button>
+      <button data-mode="difference">Δ · DIFFERENCE ×8</button>
+    </div>
+    <p class="note">If A and B sound obviously different, reduce strength. Δ deliberately amplifies only the modification so you can hear what the system is doing.</p>
   </div>
 
   <div id="rx" class="hidden">
-    <h2>CLIENT / MICROPHONE DECODER + CLOCK PLL</h2>
+    <h2>RECEIVER / DIFFERENTIAL SPECTRAL CORRELATION</h2>
     <div id="rxTc" class="tc">--:--.---</div>
-    <div class="controls"><button id="mic" class="primary">ENABLE MICROPHONE</button><button id="clear">CLEAR LOCK</button></div>
-    <div class="row"><span>Carrier profile</span><select id="rxProfile"><option value="mid">MID 2.4–5.9 kHz</option><option value="high">HIGH 7–11 kHz</option></select><span></span></div>
-    <div class="row"><span>Acoustic offset</span><input id="offset" type="range" min="-250" max="500" value="0" step="1"><span id="offsetText">0 ms</span></div>
-    <div class="row"><span>Signal</span><div class="meter"><i id="sig"></i></div><span id="sigText">—</span></div>
-    <div class="row"><span>Tone dominance</span><div class="meter"><i id="dom"></i></div><span id="domText">—</span></div>
+    <div class="bigline"><span id="rxState">SEARCH</span><span id="rxCode">MIN -- / SEC --</span><span id="rxFrame">FRAME —</span></div>
+
+    <div class="controls">
+      <button id="mic" class="primary">ENABLE MICROPHONE</button>
+      <button id="clear">CLEAR LOCK</button>
+    </div>
+
+    <div class="row"><span>Detection threshold</span><input id="threshold" type="range" min="0.20" max="0.90" value="0.48" step="0.01"><span id="thresholdText">0.48</span></div>
+    <div class="row"><span>Preamble corr.</span><div class="meter"><i id="preBar"></i></div><span id="preText">—</span></div>
+    <div class="row"><span>ID confidence</span><div class="meter"><i id="idBar"></i></div><span id="idText">—</span></div>
+    <div class="row"><span>Clock offset</span><input id="offset" type="range" min="-500" max="500" value="0" step="1"><span id="offsetText">0 ms</span></div>
+    <p class="note">This mode needs actual programme audio. In silence there is nothing to watermark, so loss of lock is expected. Browser echo cancellation / noise suppression are requested off but the OS may still process the microphone.</p>
   </div>
 
   <div id="learn" class="hidden">
-    <h2>WHAT V2 IS TEACHING</h2>
+    <h2>ARCHITECTURE</h2>
     <div class="kv">
-      <div>Audio thread</div><div>Decoding runs in AudioWorklet instead of requestAnimationFrame, so DSP timing is isolated from UI frame rate.</div>
-      <div>Clock model</div><div>SHOW_TIME = RATE × LOCAL_MONOTONIC_TIME + OFFSET.</div>
-      <div>Discipline</div><div>New packets are observations, not commands to hard-jump every frame. Small errors slew; large errors reacquire.</div>
-      <div>Holdover</div><div>When acoustic packets disappear, the local monotonic clock continues the show until packets return.</div>
-      <div>Transport</div><div>This demo uses 4-FSK + CRC. A production system can swap in watermark, LTC, fingerprint, ESP-NOW, or Link without replacing the cue engine.</div>
+      <div>Physical layer</div><div>16 nearby frequency pairs between roughly 2.6–9.2 kHz. Each pair is nudged by only a fraction of a dB.</div>
+      <div>Differential code</div><div>Every 200 ms code is sent as +pattern then −pattern. Subtracting the two halves cancels much of the programme's natural spectral bias.</div>
+      <div>Frame</div><div>0–200 ms preamble, 200–400 ms minute ID, 400–600 ms second ID, 600–1000 ms untouched audio.</div>
+      <div>Capacity</div><div>Minute 0–59 + second 0–59 gives absolute show position for a one-hour programme without streaming LED values.</div>
+      <div>Clock</div><div>SHOW_TIME = RATE × RECEIVER_AUDIO_CLOCK + OFFSET. Anchors discipline the clock; local audio time free-runs during holdover.</div>
+      <div>Important</div><div>This is an open experimental spectral-patchwork design, not Evixar Another Track and not the audiowmark implementation.</div>
     </div>
   </div>
 </section>
 
 <section class="panel">
-  <h2>CLOCK DIAGNOSTICS</h2>
+  <h2>SYNC DIAGNOSTICS</h2>
   <div class="diag">
     <div class="card"><div class="k">LOCK</div><div class="v" id="lock">SEARCH</div></div>
-    <div class="card"><div class="k">ERROR</div><div class="v" id="err">— ms</div></div>
+    <div class="card"><div class="k">CLOCK ERROR</div><div class="v" id="err">— ms</div></div>
     <div class="card"><div class="k">DRIFT</div><div class="v" id="drift">— ppm</div></div>
-    <div class="card"><div class="k">AGE</div><div class="v" id="age">— ms</div></div>
+    <div class="card"><div class="k">PACKET AGE</div><div class="v" id="age">— ms</div></div>
     <div class="card"><div class="k">VALID</div><div class="v" id="valid">0</div></div>
-    <div class="card"><div class="k">CRC FAIL</div><div class="v" id="bad">0</div></div>
-    <div class="card"><div class="k">AUDIO OUT</div><div class="v" id="outlat">— ms</div></div>
+    <div class="card"><div class="k">REJECT</div><div class="v" id="reject">0</div></div>
     <div class="card"><div class="k">SAMPLE RATE</div><div class="v" id="sr">—</div></div>
+    <div class="card"><div class="k">STRENGTH</div><div class="v" id="strengthDiag">0.70 dB</div></div>
   </div>
 </section>
 
 <section class="panel">
-  <h2>TEST PROCEDURE</h2>
+  <h2>RECOMMENDED FIRST TEST</h2>
   <div class="kv">
-    <div>T0</div><div>Two browsers, 30 cm, MID carrier, quiet room.</div>
-    <div>T1</div><div>Move receiver to 1 m / 3 m / 5 m. Watch ERROR and LOCK.</div>
-    <div>T2</div><div>Play music from the same speaker. Compare MID vs HIGH.</div>
-    <div>T3</div><div>Mute sender for 5–20 s. Observe HOLDOVER, then relock.</div>
-    <div>T4</div><div>Use acoustic offset to compensate stable input/propagation delay.</div>
+    <div>1</div><div>Use a dense music track, not silence or solo speech.</div>
+    <div>2</div><div>Start at 1.20–1.50 dB only to prove decoding works.</div>
+    <div>3</div><div>Receiver 30–50 cm from the speaker; volume around normal listening level.</div>
+    <div>4</div><div>After lock is stable, lower watermark strength toward 0.5–0.8 dB until A/B becomes perceptually negligible.</div>
+    <div>5</div><div>Then test 1 m / 3 m / music compression / different speakers.</div>
   </div>
 </section>
 
 <section class="panel wide">
-  <h2>LOCAL CUE ENGINE / A B C GROUPS</h2>
+  <h2>LOCAL CUE ENGINE / SAME TIMELINE, DIFFERENT GROUPS</h2>
   <div class="lights" id="lights"></div>
-  <div class="note" id="cueText">SECTION 00 · WAIT</div>
+  <div class="bigline"><span id="cueText">SECTION 00 · WAIT</span><span id="beatText">BEAT —</span></div>
 </section>
 </main>
 
 <script>
 const $=s=>document.querySelector(s);
-const PROFILES={mid:[[2400,2900,3400,3900],[4400,4900,5400,5900]],high:[[7000,7600,8200,8800],[9300,9900,10500,11100]]};
-const PRE=[0,3,1,2,3,0], SYM=.05, FRAME_SYMS=18, FRAME_DUR=SYM*FRAME_SYMS;
-let tab='tx', ac=null, master=null, running=false, paused=false, showOrigin=0, pausedAt=0, txTimer=null;
-let rxCtx=null, stream=null, node=null, valid=0,bad=0,lastPacket=0,lockState='SEARCH';
-let observations=[], rate=1, intercept=0, lastError=0, locked=false;
+const PAIRS=Array.from({length:16},(_,i)=>[2600+i*430,2770+i*430]);
+const NPAIR=PAIRS.length;
+const HALF=0.100;
+const FRAME=1.000;
+let tab='tx';
+let txCtx=null,buffer=null,source=null,playStartCtx=0,playStartPos=0,pausedPos=0,playing=false,scheduler=null,scheduledSec=-1;
+let dryGain=null,wetGain=null,master=null,filters=[];
+let rxCtx=null,rxNode=null,rxStream=null;
+let valid=0,reject=0,lastAnchorPerf=0,lastError=0,rate=1,intercept=0,locked=false,observations=[];
+let detectedMinute=null,detectedSecond=null,lastIdConfidence=0;
+let strength=0.70;
 
-for(let i=0;i<18;i++){const d=document.createElement('div');d.className='lamp';$('#lights').appendChild(d)}
-function tabTo(x){tab=x;['tx','rx','learn'].forEach(k=>$('#'+k).classList.toggle('hidden',k!==x));$('#txTab').classList.toggle('on',x==='tx');$('#rxTab').classList.toggle('on',x==='rx');$('#learnTab').classList.toggle('on',x==='learn')}
+function setStatus(t,c=''){ $('#status').textContent=t; $('#dot').className='dot '+c; }
+function fmt(s){s=Math.max(0,s||0);const m=Math.floor(s/60),q=Math.floor(s%60),ms=Math.floor((s%1)*1000);return String(m).padStart(2,'0')+':'+String(q).padStart(2,'0')+'.'+String(ms).padStart(3,'0')}
+function showPos(){ if(!buffer)return 0; if(!playing)return pausedPos; return Math.min(buffer.duration,playStartPos+(txCtx.currentTime-playStartCtx)); }
+
+function balancedPattern(seed){
+  let x=(seed>>>0)||1,arr=new Array(NPAIR).fill(-1);for(let i=0;i<NPAIR/2;i++)arr[i]=1;
+  for(let i=NPAIR-1;i>0;i--){x=(Math.imul(x,1664525)+1013904223)>>>0;const j=x%(i+1);[arr[i],arr[j]]=[arr[j],arr[i]]}
+  return arr;
+}
+const PREAMBLE=balancedPattern(0x51f15e);
+const CODES=Array.from({length:60},(_,i)=>balancedPattern(0xa531+i*977));
+
+function tabTo(x){
+  tab=x;['tx','rx','learn'].forEach(k=>$('#'+k).classList.toggle('hidden',k!==x));
+  $('#txTab').classList.toggle('on',x==='tx');$('#rxTab').classList.toggle('on',x==='rx');$('#learnTab').classList.toggle('on',x==='learn');
+}
 $('#txTab').onclick=()=>tabTo('tx');$('#rxTab').onclick=()=>tabTo('rx');$('#learnTab').onclick=()=>tabTo('learn');
 
-function nowShow(){if(!running)return 0;if(paused)return pausedAt;return (performance.now()-showOrigin)/1000}
-function fmt(s){s=Math.max(0,s);let m=Math.floor(s/60),q=Math.floor(s%60),ms=Math.floor((s%1)*1000);return String(m).padStart(2,'0')+':'+String(q).padStart(2,'0')+'.'+String(ms).padStart(3,'0')}
-function crc8(a){let c=0;for(const b of a){c^=b;for(let i=0;i<8;i++)c=(c&128)?((c<<1)^7)&255:(c<<1)&255}return c}
-function byteSyms(b){return[(b>>6)&3,(b>>4)&3,(b>>2)&3,b&3]}
-function packetFor(showAtEnd){
-  const tick=Math.max(0,Math.min(0x7fff,Math.round(showAtEnd*4)));
-  const word=(paused?0x8000:0)|tick,hi=(word>>8)&255,lo=word&255,c=crc8([hi,lo]);
-  return PRE.concat(byteSyms(hi),byteSyms(lo),byteSyms(c));
+async function loadFile(file){
+  if(!txCtx)txCtx=new AudioContext({latencyHint:'playback'});
+  const ab=await file.arrayBuffer();buffer=await txCtx.decodeAudioData(ab.slice(0));pausedPos=0;
+  $('#fileName').textContent=file.name;$('#durationText').textContent=fmt(buffer.duration);$('#play').disabled=false;$('#pause').disabled=false;$('#restart').disabled=false;$('#sr').textContent=txCtx.sampleRate+' Hz';
+  buildGraph();setStatus('AUDIO READY','warn');
 }
-function ensureTx(){
-  if(!ac){ac=new AudioContext({latencyHint:'interactive'});master=ac.createGain();master.gain.value=+$('#gain').value;master.connect(ac.destination);$('#sr').textContent=ac.sampleRate+' Hz'}
-  ac.resume();
-  $('#outlat').textContent=((ac.outputLatency||0)*1000).toFixed(1)+' ms';
-}
-function sendPacket(){
-  ensureTx();const t0=ac.currentTime+.06, showEnd=nowShow()+.06+FRAME_DUR, syms=packetFor(showEnd),p=PROFILES[$('#txProfile').value];
-  syms.forEach((v,i)=>{const t=t0+i*SYM,o=ac.createOscillator(),g=ac.createGain();o.frequency.setValueAtTime(p[i&1][v],t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(1,t+.003);g.gain.setValueAtTime(1,t+SYM-.004);g.gain.linearRampToValueAtTime(0,t+SYM);o.connect(g).connect(master);o.start(t);o.stop(t+SYM+.005)});
-}
-$('#start').onclick=()=>{ensureTx();if(!running){running=true;paused=false;showOrigin=performance.now()}else if(paused){showOrigin=performance.now()-pausedAt*1000;paused=false}clearInterval(txTimer);sendPacket();txTimer=setInterval(sendPacket,1100);setStatus('TX RUN','ok')};
-$('#pause').onclick=()=>{if(!running)return;if(!paused){pausedAt=nowShow();paused=true}else{showOrigin=performance.now()-pausedAt*1000;paused=false}sendPacket()};
-$('#reset').onclick=()=>{running=true;paused=false;showOrigin=performance.now();pausedAt=0;sendPacket()};
-$('#burst').onclick=sendPacket;
-$('#gain').oninput=e=>{master&&(master.gain.value=+e.target.value);$('#gainText').textContent=(+e.target.value).toFixed(2)};
-$('#bpm').oninput=e=>$('#bpmText').textContent=e.target.value;
-$('#offset').oninput=e=>$('#offsetText').textContent=e.target.value+' ms';
+$('#audioFile').onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)loadFile(f).catch(err=>{console.error(err);setStatus('DECODE ERROR','bad')})};
 
-function setStatus(t,c=''){ $('#status').textContent=t;$('#dot').className='dot '+c }
-function parsePayload(a,localArrival){
-  const sb=o=>((a[o]&3)<<6)|((a[o+1]&3)<<4)|((a[o+2]&3)<<2)|(a[o+3]&3);
-  const hi=sb(0),lo=sb(4),c=sb(8);if(crc8([hi,lo])!==c){bad++;$('#bad').textContent=bad;return}
-  const word=(hi<<8)|lo,show=(word&0x7fff)/4,rxPaused=!!(word&0x8000),corr=(+$('#offset').value)/1000;
-  discipline(localArrival,show+corr);
-  valid++;lastPacket=performance.now();$('#valid').textContent=valid;paused=rxPaused;setStatus('RX LOCK','ok')
+function buildGraph(){
+  if(!txCtx)return;
+  dryGain=txCtx.createGain();wetGain=txCtx.createGain();master=txCtx.createGain();master.gain.value=.92;
+  filters=[];
+  let head=null,tail=null;
+  for(const pair of PAIRS){
+    for(const f of pair){
+      const b=txCtx.createBiquadFilter();b.type='peaking';b.frequency.value=f;b.Q.value=15;b.gain.value=0;
+      if(!head)head=b;if(tail)tail.connect(b);tail=b;filters.push(b);
+    }
+  }
+  dryGain.connect(master);if(tail)tail.connect(wetGain);wetGain.connect(master);master.connect(txCtx.destination);
+  applyListenMode($('#listenMode').value);
 }
-function discipline(local,show){
-  observations.push({local,show});if(observations.length>20)observations.shift();
-  if(observations.length===1){rate=1;intercept=show-local;locked=true;lockState='LOCKING';lastError=0;return}
-  // Robust-ish affine fit over recent observations.
-  let n=observations.length,mx=0,my=0;for(const o of observations){mx+=o.local;my+=o.show}mx/=n;my/=n;
-  let num=0,den=0;for(const o of observations){num+=(o.local-mx)*(o.show-my);den+=(o.local-mx)*(o.local-mx)}
-  let fitRate=den>1e-6?num/den:1;fitRate=Math.max(.9995,Math.min(1.0005,fitRate));
-  const fitInt=my-fitRate*mx,pred=rate*local+intercept,err=show-pred;lastError=err;
-  if(Math.abs(err)>.35 || !locked){rate=fitRate;intercept=fitInt}
-  else{rate=rate*.92+fitRate*.08;intercept=intercept*.92+fitInt*.08}
-  locked=true;lockState=n>=5?'LOCKED':'LOCKING'
+function connectSource(src){src.connect(dryGain);src.connect(filters[0])}
+function cancelFilterAutomation(t){
+  for(const f of filters){f.gain.cancelScheduledValues(t);f.gain.setValueAtTime(0,t)}
 }
-function disciplinedShow(){
-  if(!locked)return 0;
-  return rate*(performance.now()/1000)+intercept;
+function setPatternAt(t,p,polarity=1){
+  for(let i=0;i<NPAIR;i++){
+    const s=p[i]*polarity*strength;
+    const a=filters[i*2].gain,b=filters[i*2+1].gain;
+    a.setTargetAtTime(s,t,.004);b.setTargetAtTime(-s,t,.004);
+  }
 }
+function setZeroAt(t){for(const f of filters)f.gain.setTargetAtTime(0,t,.004)}
+function scheduleFrame(sec){
+  if(!playing||!buffer)return;
+  const base=playStartCtx+(sec-playStartPos);
+  if(base<txCtx.currentTime-.05||base>playStartCtx+(buffer.duration-playStartPos)+.1)return;
+  const minute=Math.floor(sec/60)%60, second=Math.floor(sec)%60;
+  setPatternAt(base,PREAMBLE,1);setPatternAt(base+.100,PREAMBLE,-1);
+  setPatternAt(base+.200,CODES[minute],1);setPatternAt(base+.300,CODES[minute],-1);
+  setPatternAt(base+.400,CODES[second],1);setPatternAt(base+.500,CODES[second],-1);
+  setZeroAt(base+.600);
+}
+function scheduleAhead(){
+  if(!playing)return;const now=showPos(),until=Math.min(buffer.duration,now+2.2);
+  let s=Math.max(0,Math.floor(now)-1,scheduledSec+1);
+  for(;s<=Math.floor(until);s++){scheduleFrame(s);scheduledSec=s}
+}
+function startAt(pos){
+  if(!buffer)return;txCtx.resume();if(source){try{source.stop()}catch(e){}}
+  cancelFilterAutomation(txCtx.currentTime);source=txCtx.createBufferSource();source.buffer=buffer;connectSource(source);
+  playStartPos=Math.max(0,Math.min(buffer.duration-.01,pos||0));playStartCtx=txCtx.currentTime+.12;source.start(playStartCtx,playStartPos);playing=true;scheduledSec=Math.floor(playStartPos)-1;
+  clearInterval(scheduler);scheduleAhead();scheduler=setInterval(scheduleAhead,250);
+  source.onended=()=>{if(showPos()>=buffer.duration-.05){playing=false;pausedPos=buffer.duration;clearInterval(scheduler);setZeroAt(txCtx.currentTime);setStatus('ENDED','')}}
+  setStatus('TX WATERMARK','ok');
+}
+$('#play').onclick=()=>startAt(pausedPos);
+$('#pause').onclick=()=>{if(!playing)return;pausedPos=showPos();playing=false;clearInterval(scheduler);if(source){try{source.stop()}catch(e){}}cancelFilterAutomation(txCtx.currentTime);setStatus('PAUSED','warn')};
+$('#restart').onclick=()=>{pausedPos=0;startAt(0)};
+
+function applyListenMode(mode){
+  if(!dryGain||!wetGain)return;
+  const t=txCtx.currentTime;
+  if(mode==='original'){dryGain.gain.setTargetAtTime(1,t,.01);wetGain.gain.setTargetAtTime(0,t,.01)}
+  else if(mode==='watermarked'){dryGain.gain.setTargetAtTime(0,t,.01);wetGain.gain.setTargetAtTime(1,t,.01)}
+  else{dryGain.gain.setTargetAtTime(-8,t,.01);wetGain.gain.setTargetAtTime(8,t,.01)}
+  document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
+  $('#listenMode').value=mode;
+}
+$('#listenMode').onchange=e=>applyListenMode(e.target.value);
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>applyListenMode(b.dataset.mode));
+$('#strength').oninput=e=>{strength=+e.target.value;$('#strengthText').textContent=strength.toFixed(2)+' dB';$('#strengthDiag').textContent=strength.toFixed(2)+' dB'};
+$('#bpm').oninput=e=>$('#bpmText').textContent=e.target.value;
+
+function discipline(localAudioTime,showTime){
+  const corrected=showTime+(+$('#offset').value)/1000;
+  observations.push({x:localAudioTime,y:corrected});if(observations.length>24)observations.shift();
+  if(observations.length===1){rate=1;intercept=corrected-localAudioTime;locked=true;lastError=0;return}
+  const pred=rate*localAudioTime+intercept;const err=corrected-pred;lastError=err;
+  let mx=0,my=0;for(const o of observations){mx+=o.x;my+=o.y}mx/=observations.length;my/=observations.length;
+  let num=0,den=0;for(const o of observations){num+=(o.x-mx)*(o.y-my);den+=(o.x-mx)*(o.x-mx)}
+  let fr=den>1e-7?num/den:1;fr=Math.max(.9995,Math.min(1.0005,fr));const fi=my-fr*mx;
+  if(Math.abs(err)>.35||!locked){rate=fr;intercept=fi}else{rate=rate*.90+fr*.10;intercept=intercept*.90+fi*.10}
+  locked=true;
+}
+function rxShow(){return locked&&rxCtx?rate*rxCtx.currentTime+intercept:0}
 
 async function enableMic(){
-  stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
+  rxStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1},video:false});
   rxCtx=new AudioContext({latencyHint:'interactive'});$('#sr').textContent=rxCtx.sampleRate+' Hz';
-  const workletCode=`
-  class FSK extends AudioWorkletProcessor{
-    constructor(){super();this.buf=[];this.cfg={p:[[2400,2900,3400,3900],[4400,4900,5400,5900]],sym:.05};this.phase=0;this.last=-1;this.hist=[];this.collect=false;this.pay=[];this.P=[0,3,1,2,3,0];this.port.onmessage=e=>{if(e.data&&e.data.p)this.cfg.p=e.data.p}}
-    power(x,f){let w=2*Math.PI*f/sampleRate,c=2*Math.cos(w),s0=0,s1=0,s2=0;for(let i=0;i<x.length;i++){s0=x[i]+c*s1-s2;s2=s1;s1=s0}return s1*s1+s2*s2-c*s1*s2}
-    process(ins){const a=ins[0]&&ins[0][0];if(!a)return true;for(let i=0;i<a.length;i++)this.buf.push(a[i]);
-      const N=Math.round(sampleRate*this.cfg.sym);
-      while(this.buf.length>=N){const x=this.buf.splice(0,N);const bank=this.phase&1,ps=this.cfg.p[bank].map(f=>this.power(x,f));let bi=0;for(let i=1;i<4;i++)if(ps[i]>ps[bi])bi=i;
-        let sorted=[...ps].sort((a,b)=>b-a),dom=10*Math.log10((sorted[0]+1e-12)/(sorted[1]+1e-12)),sig=10*Math.log10(sorted[0]+1e-12);
-        this.port.postMessage({kind:'meter',sig,dom});
-        if(dom>3){this.accept(bi)}this.phase++;
-      }return true}
-    accept(v){if(this.collect){this.pay.push(v);if(this.pay.length===12){this.port.postMessage({kind:'packet',a:this.pay,t:currentTime});this.pay=[];this.collect=false}return}
-      this.hist.push(v);if(this.hist.length>6)this.hist.shift();if(this.hist.length===6&&this.P.every((x,i)=>x===this.hist[i])){this.collect=true;this.pay=[];this.hist=[]}}
-  }registerProcessor('fsk',FSK);`;
-  const url=URL.createObjectURL(new Blob([workletCode],{type:'application/javascript'}));await rxCtx.audioWorklet.addModule(url);URL.revokeObjectURL(url);
-  node=new AudioWorkletNode(rxCtx,'fsk');const src=rxCtx.createMediaStreamSource(stream);src.connect(node);node.connect(rxCtx.destination);
-  const zero=rxCtx.createGain();zero.gain.value=0;node.disconnect();node.connect(zero).connect(rxCtx.destination);
-  updateProfile();
-  node.port.onmessage=e=>{const d=e.data;if(d.kind==='meter'){const sn=Math.max(0,Math.min(100,(d.sig+20)*2));const dm=Math.max(0,Math.min(100,d.dom*7));$('#sig').style.width=sn+'%';$('#dom').style.width=dm+'%';$('#sigText').textContent=d.sig.toFixed(1)+' dB';$('#domText').textContent=d.dom.toFixed(1)+' dB'}else if(d.kind==='packet'){parsePayload(d.a,performance.now()/1000)}};
-  $('#mic').textContent='MIC ACTIVE';setStatus('RX LISTEN','warn')
+  const pairsJSON=JSON.stringify(PAIRS), preJSON=JSON.stringify(PREAMBLE), codesJSON=JSON.stringify(CODES);
+  const code="const PAIRS="+pairsJSON+",PRE="+preJSON+",CODES="+codesJSON+";"+
+  "class WMDetect extends AudioWorkletProcessor{constructor(){super();this.win=Math.max(128,Math.round(sampleRate*.1));this.hop=Math.max(64,Math.round(sampleRate*.025));this.ring=new Float32Array(this.win*3);this.wp=0;this.count=0;this.since=0;this.features=[];this.lastPre=-99;this.stage=0;this.target=0;this.minute=null;this.th=.48;this.port.onmessage=e=>{if(e.data&&e.data.th)this.th=e.data.th}}"+
+  "push(v){this.ring[this.wp]=v;this.wp=(this.wp+1)%this.ring.length;this.count++;this.since++}"+
+  "getAgo(n){let i=this.wp-1-n;while(i<0)i+=this.ring.length;return this.ring[i%this.ring.length]}"+
+  "goertzel(f){const w=2*Math.PI*f/sampleRate,c=2*Math.cos(w);let s0=0,s1=0,s2=0;for(let n=this.win-1;n>=0;n--){s0=this.getAgo(n)+c*s1-s2;s2=s1;s1=s0}return Math.max(1e-12,s1*s1+s2*s2-c*s1*s2)}"+
+  "feature(){const out=[];for(const p of PAIRS){const a=this.goertzel(p[0]),b=this.goertzel(p[1]);out.push(Math.log(a)-Math.log(b))}let m=out.reduce((a,b)=>a+b,0)/out.length;for(let i=0;i<out.length;i++)out[i]-=m;return out}"+
+  "corr(v,p){let d=0,n=0;for(let i=0;i<v.length;i++){d+=v[i]*p[i];n+=v[i]*v[i]}return n>1e-9?d/Math.sqrt(n*p.length):0}"+
+  "classify(v){let best=-9,second=-9,id=-1;for(let k=0;k<60;k++){const c=this.corr(v,CODES[k]);if(c>best){second=best;best=c;id=k}else if(c>second)second=c}return{id,best,margin:best-second}}"+
+  "tick(){if(this.count<this.win*2)return;const f=this.feature();this.features.push(f);if(this.features.length>5)this.features.shift();if(this.features.length<5)return;const old=this.features[0],cur=this.features[4],d=old.map((x,i)=>x-cur[i]);const pc=this.corr(d,PRE);this.port.postMessage({kind:'meter',pre:pc});const t=currentTime;if(pc>this.th&&t-this.lastPre>.72){this.lastPre=t;this.stage=1;this.target=t+.20;this.port.postMessage({kind:'pre',pre:pc,t})}if(this.stage&&t>=this.target){const r=this.classify(d);this.port.postMessage({kind:'id',stage:this.stage,id:r.id,best:r.best,margin:r.margin,t});if(this.stage===1){this.minute=r.id;this.stage=2;this.target+=.20}else{this.stage=0}}}"+
+  "process(ins){const a=ins[0]&&ins[0][0];if(!a)return true;for(let i=0;i<a.length;i++){this.push(a[i]);if(this.since>=this.hop){this.since=0;this.tick()}}return true}}registerProcessor('wm-detect',WMDetect);";
+  const url=URL.createObjectURL(new Blob([code],{type:'application/javascript'}));await rxCtx.audioWorklet.addModule(url);URL.revokeObjectURL(url);
+  rxNode=new AudioWorkletNode(rxCtx,'wm-detect');const src=rxCtx.createMediaStreamSource(rxStream);const zero=rxCtx.createGain();zero.gain.value=0;src.connect(rxNode);rxNode.connect(zero).connect(rxCtx.destination);
+  rxNode.port.postMessage({th:+$('#threshold').value});
+  rxNode.port.onmessage=e=>{
+    const d=e.data;
+    if(d.kind==='meter'){const p=Math.max(0,Math.min(1,(d.pre+1)/2));$('#preBar').style.width=(p*100)+'%';$('#preText').textContent=d.pre.toFixed(2)}
+    else if(d.kind==='pre'){ $('#rxState').textContent='PREAMBLE'; $('#rxFrame').textContent='FRAME DETECTED'; }
+    else if(d.kind==='id'){
+      const c=Math.max(0,Math.min(1,(d.best+1)/2));lastIdConfidence=d.best;$('#idBar').style.width=(c*100)+'%';$('#idText').textContent=d.best.toFixed(2);
+      if(d.best<+$('#threshold').value){reject++;$('#reject').textContent=reject;return}
+      if(d.stage===1){detectedMinute=d.id;$('#rxCode').textContent='MIN '+String(d.id).padStart(2,'0')+' / SEC --'}
+      else{
+        detectedSecond=d.id;$('#rxCode').textContent='MIN '+String(detectedMinute??0).padStart(2,'0')+' / SEC '+String(d.id).padStart(2,'0');
+        if(detectedMinute!==null){
+          const anchor=detectedMinute*60+detectedSecond+.600;discipline(d.t,anchor);valid++;lastAnchorPerf=performance.now();$('#valid').textContent=valid;$('#rxState').textContent=observations.length>=4?'LOCKED':'LOCKING';$('#rxFrame').textContent='FRAME '+String(valid).padStart(4,'0');setStatus('RX WATERMARK','ok')
+        }
+      }
+    }
+  };
+  setStatus('RX LISTEN','warn');$('#mic').textContent='MIC ACTIVE';
 }
-function updateProfile(){if(node)node.port.postMessage({p:PROFILES[$('#rxProfile').value]})}
-$('#mic').onclick=()=>enableMic().catch(e=>{setStatus('MIC ERROR','bad');console.error(e)});
-$('#rxProfile').onchange=updateProfile;
-$('#clear').onclick=()=>{observations=[];locked=false;rate=1;intercept=0;lastPacket=0;lockState='SEARCH';setStatus('RX LISTEN','warn')};
+$('#mic').onclick=()=>enableMic().catch(err=>{console.error(err);setStatus('MIC ERROR','bad')});
+$('#clear').onclick=()=>{valid=0;reject=0;observations=[];locked=false;rate=1;intercept=0;lastAnchorPerf=0;detectedMinute=detectedSecond=null;$('#valid').textContent='0';$('#reject').textContent='0';$('#rxState').textContent='SEARCH';$('#rxCode').textContent='MIN -- / SEC --';$('#lock').textContent='SEARCH'};
+$('#threshold').oninput=e=>{const v=+e.target.value;$('#thresholdText').textContent=v.toFixed(2);if(rxNode)rxNode.port.postMessage({th:v})};
+$('#offset').oninput=e=>$('#offsetText').textContent=e.target.value+' ms';
 
 function cue(t){
-  const x=t%60,bpm=+$('#bpm').value,beat=t*bpm/60,phase=beat-Math.floor(beat),q=Math.floor(beat)%4,section=Math.floor(x/12);
+  const bpm=+$('#bpm').value,beat=t*bpm/60,phase=beat-Math.floor(beat),q=Math.floor(beat)%4,x=t%60,section=Math.floor(x/12);
   [...$('#lights').children].forEach((el,i)=>{const g=Math.floor(i/6),j=i%6;let v=0,h=0;
-    if(section===0){v=(q===0?1:.18)*(1-phase);h=[0,190,45][g]}
-    if(section===1){const k=Math.floor((x-12)*7)%18;v=Math.max(.02,1-Math.abs(k-i)/3);h=190+i*5}
-    if(section===2){v=((Math.floor(beat)+g)%3===0)&&phase<.22?1:.025;h=[0,215,50][g]}
-    if(section===3){v=Math.sin(x*(7+g*2)*Math.PI*2+j)>.4?1:.02;h=[0,190,280][g]}
-    if(section===4){v=(q===0?1:.25+.75*(1-phase));h=(i*18+x*20)%360}
-    const l=8+55*v;el.style.background='hsl('+h+' 85% '+l+'%)';el.style.boxShadow=v>.3?'0 0 '+(25*v)+'px hsla('+h+',85%,60%,'+(.6*v)+')':'none';
-  });$('#cueText').textContent='SECTION 0'+(section+1)+' · '+['ACQUIRE','CHASE','GROUP SPLIT','STROBE FIELD','FINALE'][section]
+    if(section===0){v=(q===0?1:.14)*(1-phase);h=[0,190,45][g]}
+    else if(section===1){const k=Math.floor((x-12)*7)%18;v=Math.max(.02,1-Math.abs(k-i)/3);h=190+i*5}
+    else if(section===2){v=((Math.floor(beat)+g)%3===0)&&phase<.20?1:.02;h=[0,215,50][g]}
+    else if(section===3){v=Math.sin(x*(7+g*2)*Math.PI*2+j)>.42?1:.02;h=[0,190,280][g]}
+    else{v=q===0?1:.22+.78*(1-phase);h=(i*18+x*20)%360}
+    const l=7+56*v;el.style.background='hsl('+h+' 84% '+l+'%)';el.style.boxShadow=v>.3?'0 0 '+(24*v)+'px hsla('+h+',85%,60%,'+(.58*v)+')':'none'
+  });
+  $('#cueText').textContent='SECTION 0'+(section+1)+' · '+['ACQUIRE','CHASE','GROUP SPLIT','STROBE FIELD','FINALE'][section];
+  $('#beatText').textContent='BEAT '+(q+1)+' / 4';
 }
 function loop(){
-  const txs=nowShow(),rxs=disciplinedShow();$('#txTc').textContent=fmt(txs);$('#rxTc').textContent=locked?fmt(rxs):'--:--.---';
-  if(locked){const age=performance.now()-lastPacket;$('#age').textContent=Math.round(age)+' ms';$('#err').textContent=(lastError*1000).toFixed(1)+' ms';$('#drift').textContent=((rate-1)*1e6).toFixed(1)+' ppm';if(age>3000)lockState='HOLDOVER';if(age>15000)lockState='STALE'}
-  $('#lock').textContent=lockState; cue(tab==='rx'&&locked?rxs:txs);
-  if(ac&&ac.getOutputTimestamp){const ts=ac.getOutputTimestamp();if(ts&&ac.outputLatency!==undefined)$('#outlat').textContent=(ac.outputLatency*1000).toFixed(1)+' ms'}
-  requestAnimationFrame(loop)
+  const tx=showPos(),rx=rxShow(),use=tab==='rx'&&locked?rx:tx;$('#txTc').textContent=fmt(tx);$('#rxTc').textContent=locked?fmt(rx):'--:--.---';
+  if(playing)$('#frameText').textContent='FRAME '+String(Math.floor(tx)).padStart(4,'0');
+  if(locked){const age=performance.now()-lastAnchorPerf;$('#age').textContent=Math.round(age)+' ms';$('#err').textContent=(lastError*1000).toFixed(1)+' ms';$('#drift').textContent=((rate-1)*1e6).toFixed(1)+' ppm';let s=observations.length>=4?'LOCKED':'LOCKING';if(age>2500)s='HOLDOVER';if(age>10000)s='STALE';$('#lock').textContent=s;$('#rxState').textContent=s}
+  cue(use);requestAnimationFrame(loop)
 }
 loop();
 </script>
